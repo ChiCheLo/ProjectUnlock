@@ -13,7 +13,17 @@ from django.db import connection
 # 延遲導入 OpenAI 以避免啟動時出錯
 def get_openai_client():
     from openai import OpenAI
-    return OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+    api_key = os.getenv('OPENAI_API_KEY')
+    
+    # 調試輸出
+    print(f"[DEBUG] API Key loaded: {'Yes' if api_key else 'No'}")
+    if api_key:
+        print(f"[DEBUG] API Key starts with: {api_key[:20]}...")
+        print(f"[DEBUG] API Key length: {len(api_key)}")
+    else:
+        print("[ERROR] OPENAI_API_KEY not found in environment!")
+    
+    return OpenAI(api_key=api_key)
 
 
 @api_view(['POST'])
@@ -196,7 +206,10 @@ def openai_chat(request):
             })
 
     except Exception as err:
+        import traceback
+        error_trace = traceback.format_exc()
         print(f"OpenAI error: {err}")
+        print(f"Full traceback:\n{error_trace}")
         return Response({
             'ok': False,
             'error': str(err)
@@ -646,6 +659,125 @@ def get_quiz_questions(request):
             'questions': questions
         })
         
+    except Exception as err:
+        import traceback
+        return Response({
+            'ok': False,
+            'error': str(err),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
+def get_group_policy_count(request):
+    """
+    獲取組別的政策數量
+    Query params:
+      - group_id: 組別ID
+    返回:
+      { ok: True, policy_count: 5 }
+    """
+    try:
+        group_id = request.query_params.get('group_id')
+        if not group_id:
+            return Response({'ok': False, 'error': 'group_id 不能為空'}, status=400)
+
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) FROM groupPolicy_table WHERE group_id = %s
+        """, [group_id])
+        count = cursor.fetchone()[0]
+        
+        return Response({'ok': True, 'policy_count': count})
+    except Exception as err:
+        import traceback
+        return Response({
+            'ok': False,
+            'error': str(err),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
+def get_group_clues_count(request):
+    """
+    獲取組別的線索數量
+    Query params:
+      - group_id: 組別ID
+    返回:
+      { ok: True, group_clues: 12, total_clues: 40 }
+    """
+    try:
+        group_id = request.query_params.get('group_id')
+        if not group_id:
+            return Response({'ok': False, 'error': 'group_id 不能為空'}, status=400)
+
+        cursor = connection.cursor()
+        
+        # 獲取該組別所有學生擁有的線索總數（去重）
+        cursor.execute("""
+            SELECT COUNT(DISTINCT sc.clue_id)
+            FROM studentClue_table sc
+            INNER JOIN student_table st ON sc.student_id = st.student_id
+            WHERE st.group_id = %s
+        """, [group_id])
+        group_clues = cursor.fetchone()[0] or 0
+        
+        # 獲取線索總數
+        cursor.execute("SELECT COUNT(*) FROM clue_table")
+        total_clues = cursor.fetchone()[0] or 0
+        
+        return Response({
+            'ok': True,
+            'group_clues': group_clues,
+            'total_clues': total_clues
+        })
+    except Exception as err:
+        import traceback
+        return Response({
+            'ok': False,
+            'error': str(err),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
+def get_completed_domains(request):
+    """
+    獲取組別已完成的域
+    Query params:
+      - group_id: 組別ID
+    返回:
+      { ok: True, completed_domains: ['火域', '水域'] }
+    """
+    try:
+        group_id = request.query_params.get('group_id')
+        if not group_id:
+            return Response({'ok': False, 'error': 'group_id 不能為空'}, status=400)
+
+        cursor = connection.cursor()
+        
+        # 檢查表是否存在 completedDomain_table 或類似的表
+        # 如果沒有這個表，返回空列表
+        try:
+            cursor.execute("""
+                SELECT domain_name 
+                FROM completedDomain_table 
+                WHERE group_id = %s
+            """, [group_id])
+            rows = cursor.fetchall()
+            completed_domains = [row[0] for row in rows]
+        except Exception:
+            # 如果表不存在，返回空列表
+            completed_domains = []
+        
+        return Response({
+            'ok': True,
+            'completed_domains': completed_domains
+        })
     except Exception as err:
         import traceback
         return Response({

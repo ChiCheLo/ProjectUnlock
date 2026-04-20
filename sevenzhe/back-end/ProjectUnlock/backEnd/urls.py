@@ -12,6 +12,7 @@ urlpatterns = [
     
     # OpenAI Chat API
     path('openai/', views.openai_chat, name='openai_chat'),
+    path('domain-story/', views.get_domain_story, name='get_domain_story'),
     
     # Game Data APIs
     path('country-status/', views.get_country_status, name='get_country_status'),

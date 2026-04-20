@@ -85,33 +85,46 @@ def student_login(request):
 @csrf_exempt
 def openai_chat(request):
     """
-    接收前端的海龜湯遊戲消息，調用 OpenAI GPT-4o 回應
-    
+    接收前端的海龜湯遊戲消息，從 soup_table 取得故事內容，調用 OpenAI GPT-4o 回應
+
     Request body:
     {
         "message": "玩家的問題",
-        "story_question": "湯面",
-        "story_answer": "湯底",
+        "domain": "火域",          ← 只需傳域名，後端自動查詢湯面/湯底
         "game_record_id": optional
     }
     """
     try:
         data = request.data
         message = data.get('message', '').strip()
-        story_question = data.get('story_question', '')
-        story_answer = data.get('story_answer', '')
+        domain = data.get('domain', '').strip()
         game_record_id = data.get('game_record_id')
 
         if not message:
             return Response({'ok': False, 'error': '消息不能為空'}, status=400)
 
-        if not story_question or not story_answer:
-            return Response({'ok': False, 'error': '故事信息不完整'}, status=400)
+        if not domain:
+            return Response({'ok': False, 'error': '域名不能為空'}, status=400)
+
+        # 從 soup_table 查詢湯面與湯底
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT soup_content, soup_answer
+            FROM soup_table
+            WHERE soup_title = %s
+            LIMIT 1
+        """, [domain])
+        row = cursor.fetchone()
+
+        if not row:
+            return Response({'ok': False, 'error': f'找不到域「{domain}」的故事資料'}, status=404)
+
+        story_question, story_answer = row[0], row[1]
 
         # 獲取 OpenAI client
         client = get_openai_client()
 
-        # 調用 OpenAI API
+        # 調用 OpenAI API（Function Calling 限制輸出格式）
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -166,10 +179,10 @@ def openai_chat(request):
 
         # 解析 function calling 結果
         tool_call = response.choices[0].message.tool_calls[0] if response.choices[0].message.tool_calls else None
-        
+
         if tool_call and tool_call.function.name == "game_response":
             result = json.loads(tool_call.function.arguments)
-            
+
             # 保存聊天記錄（可選）
             if game_record_id:
                 try:
@@ -666,6 +679,36 @@ def get_quiz_questions(request):
             'error': str(err),
             'traceback': traceback.format_exc()
         }, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
+def get_domain_story(request):
+    """
+    根據域名取得 soup_table 中的湯面（soup_content）
+    Query params:
+      - domain: 域名（如「火域」）
+    返回:
+      { ok: True, soup_content: "..." }
+    """
+    try:
+        domain = request.query_params.get('domain', '').strip()
+        if not domain:
+            return Response({'ok': False, 'error': 'domain 不能為空'}, status=400)
+
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT soup_content FROM soup_table WHERE soup_title = %s LIMIT 1
+        """, [domain])
+        row = cursor.fetchone()
+
+        if not row:
+            return Response({'ok': False, 'error': f'找不到域「{domain}」的故事'}, status=404)
+
+        return Response({'ok': True, 'soup_content': row[0]})
+    except Exception as err:
+        import traceback
+        return Response({'ok': False, 'error': str(err), 'traceback': traceback.format_exc()}, status=500)
 
 
 @api_view(['GET'])

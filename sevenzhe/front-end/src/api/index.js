@@ -19,11 +19,10 @@ export const getLeaderboard = () => {
 }
 
 // 呼叫 OpenAI Chat API
-export const callOpenAIChat = (message, story_question, story_answer, game_record_id = null) => {
+export const callOpenAIChat = (message, domain, game_record_id = null) => {
   return api.post('/openai/', {
     message,
-    story_question,
-    story_answer,
+    domain,
     game_record_id
   })
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="question-card" :class="{ expanded: question.expanded }">
+  <div class="question-card" :class="{ expanded: question.expanded }" :style="{ background: getSubjectGradient(question.subject) }">
     <div class="stars">
       <span
         v-for="i in 3"
@@ -26,13 +26,26 @@ defineProps({
     required: true
   }
 })
+
+// 科目對應漸層色
+const getSubjectGradient = (subject) => {
+  const gradients = {
+    '物理': 'linear-gradient(to right top, #36FAB3, #27D589)',
+    '化學': 'linear-gradient(to right top, #058CA1, #3640FA)',
+    '生物': 'linear-gradient(to right top, #D3786C, #FA3636)',
+    '地科': 'linear-gradient(to right top, #D3BE6C, #FAD636)',
+    '地理': 'linear-gradient(to right top, #D3A06C, #FA8B36)'
+  }
+  return gradients[subject] || 'linear-gradient(to right top, #058CA1, #3640FA)'
+}
+
+
 </script>
 
 <style scoped>
 .question-card {
   width: 200px;
   min-height: 120px;
-  background: linear-gradient(to right top, #058CA1, #3640FA);
   color: white;
   border-radius: 12px;
   padding: 16px;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import Header from '../components/Header.vue'
 import PathLayout from '../components/quiz/PathLayout.vue'
@@ -50,9 +50,89 @@ const selectedQuestion = ref<any>(null)
 const resultState = ref('idle') // 'idle', 'correct', 'wrong'
 const subjectCards = ref<any[]>([])
 
+// 視圖模式控制
+const viewMode = ref<'allInOne' | 'detail'>('detail') // 暫時改為 detail
+const isTransitioning = ref(false)
+const isLoading = ref(true) // 載入狀態
+// const zoomScale = ref(1) // 縮放比例，用於 allInOne 模式
+// const pathsWrapperRef = ref<HTMLElement | null>(null) // PathLayout 包裝器的引用
+
+// // 計算縮放後的容器樣式
+// const containerStyle = computed(() => {
+//   if (!pathsWrapperRef.value) return {}
+  
+//   // 獲取未縮放的寬度和高度
+//   const wrapperWidth = pathsWrapperRef.value.scrollWidth
+//   const wrapperHeight = pathsWrapperRef.value.scrollHeight
+  
+//   // 計算縮放後的實際尺寸
+//   const scaledWidth = wrapperWidth * zoomScale.value
+//   const scaledHeight = wrapperHeight * zoomScale.value
+  
+//   return {
+//     width: `${scaledWidth + 80}px`, // 加上 padding (40px * 2)
+//     height: `${scaledHeight + 60}px`, // 加上 padding (20px + 40px)
+//   }
+// })
+
+// // 所有題目（跨科目）按 level 排序用於 allInOne 模式
+// const allQuestions = computed(() => {
+//   const all: Question[] = []
+//   subjects.value.forEach(subject => {
+//     subject.questions.forEach(q => {
+//       all.push(q)
+//     })
+//   })
+//   // 按 level 從高到低排序 (level 3 -> 1)
+//   return all.sort((a, b) => b.level - a.level)
+// })
+
+// // 按 level 分組的題目，用於 allInOne 模式的佈局
+// const questionsByLevel = computed(() => {
+//   const grouped: { [key: number]: Question[] } = { 3: [], 2: [], 1: [] }
+//   allQuestions.value.forEach(q => {
+//     if (grouped[q.level]) {
+//       grouped[q.level].push(q)
+//     }
+//   })
+//   return grouped
+// })
+
+// // 計算卡片在 SVG 中的 X 座標（每層最多 5 個，居中排列）
+// const getCardX = (index: number, totalCards: number) => {
+//   const maxCards = 5
+//   const actualCards = Math.min(totalCards, maxCards)
+//   const cardWidth = 120 // 卡片寬度 + 間距
+//   const startX = (600 - (actualCards * cardWidth)) / 2 + 60 // 居中
+//   return startX + (index % maxCards) * cardWidth
+// }
+
+// // 計算卡片在 SVG 中的 Y 座標
+// const getCardY = (level: number) => {
+//   const levelYMap: { [key: number]: number } = {
+//     3: 50,   // Level 3 在頂部
+//     2: 200,  // Level 2 在中間
+//     1: 350   // Level 1 在底部
+//   }
+//   return levelYMap[level] || 0
+// }
+
+// 根據科目名稱返回對應的漸層色
+const getSubjectGradient = (subject: string) => {
+  const gradientMap: Record<string, string> = {
+    '物理': 'linear-gradient(to right top, #36FAB3, #27D589)',
+    '化學': 'linear-gradient(to right top, #058CA1, #3640FA)', // 原色
+    '生物': 'linear-gradient(to right top, #D3786C, #FA3636)',
+    '地科': 'linear-gradient(to right top, #D3BE6C, #FAD636)',
+    '地理': 'linear-gradient(to right top, #D3A06C, #FA8B36)'
+  }
+  return gradientMap[subject] || gradientMap['化學'] // 預設使用化學的顏色
+}
+
 // 載入題目資料
 const loadQuestions = async () => {
   try {
+    isLoading.value = true
     const subjectsToLoad = [
       { name: '物理', id: 'physics', color: '#10B981' },
       { name: '化學', id: 'chemistry', color: '#10B981' },
@@ -95,13 +175,23 @@ const loadQuestions = async () => {
       subjects.value = fallbackSubjects as any
       currentSubject.value = fallbackSubjects[0] as any
     }
+  } finally {
+    isLoading.value = false
   }
 }
 
 onMounted(async () => {
   await loadQuestions()
   scrollToBottom(0)
+  
+  // // 添加滾輪事件監聽
+  // window.addEventListener('wheel', handleWheel, { passive: false })
 })
+
+// // 清理事件監聽
+// onUnmounted(() => {
+//   window.removeEventListener('wheel', handleWheel)
+// })
 
 // 導覽列相關變數
 const isNotificationActive = ref(true)
@@ -375,6 +465,73 @@ const goBack = () => {
   router.push('/')
 }
 
+// 視圖切換函數 - 兩層模式
+const switchToDetail = (subjectIndex: number) => {
+  if (isTransitioning.value) return
+  isTransitioning.value = true
+  currentSubjectIndex.value = subjectIndex
+  currentSubject.value = subjects.value[subjectIndex]
+  viewMode.value = 'detail'
+  setTimeout(() => {
+    isTransitioning.value = false
+    scrollToBottom(0)
+  }, 500)
+}
+
+// const switchToAllInOne = () => {
+//   if (isTransitioning.value) return
+//   isTransitioning.value = true
+//   viewMode.value = 'allInOne'
+//   setTimeout(() => {
+//     isTransitioning.value = false
+//   }, 500)
+// }
+
+// // 滾輪縮放處理
+// const handleWheel = (event: WheelEvent) => {
+//   if (isTransitioning.value) return
+  
+//   // 檢測是否為縮放手勢（按住 Ctrl/Cmd 或觸控板雙指縮放）
+//   if (event.ctrlKey || event.metaKey) {
+//     event.preventDefault()
+    
+//     const delta = -event.deltaY
+    
+//     if (viewMode.value === 'allInOne') {
+//       // allInOne 模式：調整縮放比例
+//       const zoomStep = 0.1
+//       if (delta > 0) {
+//         // 放大
+//         zoomScale.value = Math.min(zoomScale.value + zoomStep, 2) // 最大 2 倍
+//       } else {
+//         // 縮小
+//         zoomScale.value = Math.max(zoomScale.value - zoomStep, 0.3) // 最小 0.3 倍
+//       }
+//     } else if (viewMode.value === 'detail' && delta < 0) {
+//       // detail 模式縮小 -> 返回 allInOne
+//       switchToAllInOne()
+//     }
+//   }
+// }
+
+// // allInOne 模式點擊題目處理
+// const handleAllInOneQuestionClick = (question: Question) => {
+//   // 找到該題目所屬的科目並切換到該科目的 detail 模式
+//   const subjectIndex = subjects.value.findIndex(s => s.name === question.subject)
+//   if (subjectIndex !== -1) {
+//     switchToDetail(subjectIndex)
+//   }
+// }
+
+// // allInOne 模式 PathLayout 點擊題目處理
+// const handleAllInOnePathClick = (question: Question) => {
+//   // 找到該題目所屬的科目並切換到該科目的 detail 模式
+//   const subjectIndex = subjects.value.findIndex(s => s.name === question.subject)
+//   if (subjectIndex !== -1) {
+//     switchToDetail(subjectIndex)
+//   }
+// }
+
 function handleLogout() {
   // 清除本地存儲的用戶數據
   localStorage.removeItem('student_id')
@@ -556,30 +713,62 @@ function handleLogout() {
       </div>
     </div>
 
-    <div class="subject-info" v-if="currentSubject">
-      <div class="subject-badge">{{ currentSubject.name }}</div>
+    <div class="subject-info" v-if="currentSubject && viewMode === 'detail'">
+      <div class="subject-badge" :style="{ background: getSubjectGradient(currentSubject.name) }">{{ currentSubject.name }}</div>
       <div class="subject-progress">請選擇題目挑戰</div>
       <div class="subject-progress">已完成 {{ currentSubject.progress.completed }}/{{ currentSubject.progress.total }} 題</div>
     </div>
 
-    <div class="cards-wrapper" @scroll="handleScroll">
-      <div
-        v-for="(subject, index) in subjects"
-        :key="subject.id"
-        :ref="el => { if (el) subjectCards[index] = el }"
-        class="subject-card"
-      >
-        <PathLayout
-          :subject-id="subject.id"
-          :questions="subject.questions"
-          @question-click="openModal"
-        >
-          <template #question="{ question }">
-            <QuestionCard :question="(question as any)" />
-          </template>
-        </PathLayout>
-      </div>
+    <!-- 載入中提示 -->
+    <div v-if="isLoading" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">載入知識地圖中...</p>
     </div>
+
+    <!-- allInOne 模式：所有科目 PathLayout 並排 -->
+    <!-- <transition name="zoom-fade">
+      <div v-if="viewMode === 'allInOne' && subjects.length > 0" class="all-in-one-container" :style="containerStyle">
+        <div ref="pathsWrapperRef" class="all-in-one-paths-wrapper" :style="{ transform: `scale(${zoomScale})` }">
+          <div
+            v-for="(subject, index) in subjects"
+            :key="subject.id"
+            class="all-in-one-subject-path"
+          >
+            <PathLayout
+              :subject-id="subject.id"
+              :questions="subject.questions"
+              @question-click="handleAllInOnePathClick"
+            >
+              <template #question="{ question }">
+                <QuestionCard :question="(question as any)" />
+              </template>
+            </PathLayout>
+          </div>
+        </div>
+      </div>
+    </transition> -->
+
+    <!-- detail 模式：詳細檢視（原本的 cards-wrapper） -->
+    <transition name="zoom-fade">
+      <div v-if="viewMode === 'detail' && subjects.length > 0" class="cards-wrapper" @scroll="handleScroll">
+        <div
+          v-for="(subject, index) in subjects"
+          :key="subject.id"
+          :ref="el => { if (el) subjectCards[index] = el }"
+          class="subject-card"
+        >
+          <PathLayout
+            :subject-id="subject.id"
+            :questions="subject.questions"
+            @question-click="openModal"
+          >
+            <template #question="{ question }">
+              <QuestionCard :question="(question as any)" />
+            </template>
+          </PathLayout>
+        </div>
+      </div>
+    </transition>
 
     <!-- 模態框 -->
     <QuestionModal
@@ -974,7 +1163,6 @@ function handleLogout() {
 }
 
 .subject-badge {
-  background: linear-gradient(to right top, #058CA1, #3640FA);
   color: white;
   padding: 8px 24px;
   border-radius: 20px;
@@ -986,6 +1174,37 @@ function handleLogout() {
   font-size: 12px;
   opacity: 0.9;
   line-height: 1.3;
+}
+
+/* 載入中樣式 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 20px;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #f3f4f6;
+  border-top-color: #3640FA;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  font-size: 16px;
+  color: #666;
+  font-weight: 500;
 }
 
 /* 返回按鈕 */
@@ -1189,4 +1408,50 @@ function handleLogout() {
 .building-card-locked .effect-value {
   display: none;
 }
+
+/* ======= 三層視圖模式樣式 ======= */
+
+/* 縮放淡入淡出過渡動畫 */
+.zoom-fade-enter-active,
+.zoom-fade-leave-active {
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.zoom-fade-enter-from {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.zoom-fade-leave-to {
+  opacity: 0;
+  transform: scale(1.1);
+}
+
+/* allInOne 模式：所有科目 PathLayout 並排 */
+/* .all-in-one-container {
+  padding: 20px 40px 40px;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  transition: width 0.2s ease-out, height 0.2s ease-out;
+}
+
+.all-in-one-paths-wrapper {
+  display: flex;
+  gap: 0;
+  padding: 20px;
+  width: fit-content;
+  height: fit-content;
+  transform-origin: top left;
+  transition: transform 0.2s ease-out;
+}
+
+.all-in-one-subject-path {
+  flex-shrink: 0;
+  min-width: 600px;
+  height: auto;
+} */
+
+
 </style>
+```

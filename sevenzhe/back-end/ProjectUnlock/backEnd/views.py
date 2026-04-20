@@ -748,6 +748,7 @@ def get_group_clues_count(request):
 def get_completed_domains(request):
     """
     獲取組別已完成的域
+    根據 groupPolicy_table -> policy_table -> soup_table 的關聯來判斷
     Query params:
       - group_id: 組別ID
     返回:
@@ -760,18 +761,21 @@ def get_completed_domains(request):
 
         cursor = connection.cursor()
         
-        # 檢查表是否存在 completedDomain_table 或類似的表
-        # 如果沒有這個表，返回空列表
+        # 查詢該組別的政策對應的湯題（域）
+        # groupPolicy_table.policy_id -> policy_table.soup_id -> soup_table.soup_title
         try:
             cursor.execute("""
-                SELECT domain_name 
-                FROM completedDomain_table 
-                WHERE group_id = %s
+                SELECT DISTINCT s.soup_title
+                FROM groupPolicy_table gp
+                INNER JOIN policy_table p ON gp.policy_id = p.policy_id
+                INNER JOIN soup_table s ON p.soup_id = s.soup_id
+                WHERE gp.group_id = %s
             """, [group_id])
             rows = cursor.fetchall()
-            completed_domains = [row[0] for row in rows]
-        except Exception:
-            # 如果表不存在，返回空列表
+            completed_domains = [row[0] for row in rows if row[0]]
+        except Exception as e:
+            # 如果表結構不同或表不存在，返回空列表
+            print(f"Error querying completed domains: {e}")
             completed_domains = []
         
         return Response({

@@ -24,6 +24,10 @@ defineProps({
   question: {
     type: Object,
     required: true
+  },
+  exhausted: {
+    type: Boolean,
+    default: false
   }
 })
 

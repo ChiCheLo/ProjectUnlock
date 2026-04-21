@@ -183,6 +183,8 @@ const loadQuestions = async () => {
 
 onMounted(async () => {
   await loadQuestions()
+  await loadExhaustedQuestions()
+  await loadMyCorrectQuestions()
   scrollToBottom(0)
   
   // // 添加滾輪事件監聽
@@ -433,6 +435,11 @@ const handleSubmit = async (userAnswer: string) => {
 
     // 儲存答題紀錄
     await saveAnswerRecord(Number(studentId), selectedQuestion.value.id, wasteTime, data.correct, userAnswer)
+    // 答對後重新檢查是否有題目被耗盡
+    if (data.correct) {
+      await loadExhaustedQuestions()
+      await loadMyCorrectQuestions()
+    }
 
   } catch (err) {
     console.error('呼叫 quiz-answer-check 失敗:', err)
@@ -449,6 +456,11 @@ async function saveAnswerRecord(
   isCorrect: boolean,
   inputAnswer: string = ''
 ) {
+  const sessionId = localStorage.getItem('session_id')
+  if (!sessionId) {
+    console.warn('找不到 session_id，略過儲存答題紀錄')
+    return
+  }
   try {
     await fetch('http://127.0.0.1:8000/api/answer-record/', {
       method: 'POST',
@@ -458,13 +470,54 @@ async function saveAnswerRecord(
         question_id: questionId,
         answered_wastetime: wasteTime,
         is_correct: isCorrect,
-        input_answer: inputAnswer
+        input_answer: inputAnswer,
+        session_id: Number(sessionId)
       })
     })
   } catch (err) {
     console.warn('儲存答題紀錄失敗:', err)
   }
 }
+
+// 已被 session 耗盡（答對 >= 3 次）的題目 ID 清單
+const exhaustedQuestionIds = ref<number[]>([])
+
+async function loadExhaustedQuestions() {
+  const sessionId = localStorage.getItem('session_id')
+  if (!sessionId) return
+  try {
+    const resp = await fetch(`http://127.0.0.1:8000/api/session-exhausted-questions/?session_id=${sessionId}`)
+    const data = await resp.json()
+    if (data.ok) {
+      exhaustedQuestionIds.value = data.exhausted_question_ids
+    }
+  } catch (err) {
+    console.warn('載入 exhausted questions 失敗:', err)
+  }
+}
+
+// 此學生自己在此 session 答對過的題目 ID
+const myCorrectIds = ref<number[]>([])
+
+async function loadMyCorrectQuestions() {
+  const studentId = localStorage.getItem('student_id')
+  const sessionId = localStorage.getItem('session_id')
+  if (!studentId || !sessionId) return
+  try {
+    const resp = await fetch(`http://127.0.0.1:8000/api/my-correct-questions/?student_id=${studentId}&session_id=${sessionId}`)
+    const data = await resp.json()
+    if (data.ok) {
+      myCorrectIds.value = data.correct_question_ids
+    }
+  } catch (err) {
+    console.warn('載入個人答對紀錄失敗:', err)
+  }
+}
+
+// 合併：自己答對 OR session 耗盡 → 都禁用
+const disabledQuestionIds = computed(() => {
+  return [...new Set([...exhaustedQuestionIds.value, ...myCorrectIds.value])]
+})
 
 // 從 localStorage 讀取學生名字
 const studentName = computed(() => {
@@ -665,7 +718,7 @@ function handleLogout() {
     <div class="subject-info" v-if="currentSubject && viewMode === 'detail'">
       <div class="subject-badge" :style="{ background: getSubjectGradient(currentSubject.name) }">{{ currentSubject.name }}</div>
       <div class="subject-progress">請選擇題目挑戰</div>
-      <div class="subject-progress">已完成 {{ currentSubject.progress.completed }}/{{ currentSubject.progress.total }} 題</div>
+      <div class="subject-progress">已完成 {{ currentSubject.questions.filter((q: any) => disabledQuestionIds.includes(q.id)).length }}/{{ currentSubject.progress.total }} 題</div>
     </div>
 
     <!-- 載入中提示 -->
@@ -709,10 +762,11 @@ function handleLogout() {
           <PathLayout
             :subject-id="subject.id"
             :questions="subject.questions"
+            :exhausted-ids="disabledQuestionIds"
             @question-click="openModal"
           >
-            <template #question="{ question }">
-              <QuestionCard :question="(question as any)" />
+            <template #question="{ question, exhausted }">
+              <QuestionCard :question="(question as any)" :exhausted="exhausted" />
             </template>
           </PathLayout>
         </div>

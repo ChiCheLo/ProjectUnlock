@@ -21,10 +21,11 @@
       v-for="(question, index) in questions"
       :key="question.id"
       class="question-wrapper"
+      :class="{ exhausted: exhaustedIds.includes(question.id) }"
       :style="getPositionStyle(index)"
-      @click="$emit('questionClick', question)"
+      @click="!exhaustedIds.includes(question.id) && $emit('questionClick', question)"
     >
-      <slot name="question" :question="question"></slot>
+      <slot name="question" :question="question" :exhausted="exhaustedIds.includes(question.id)"></slot>
     </div>
   </div>
 </template>
@@ -41,6 +42,10 @@ const props = defineProps({
   questions: {
     type: Array,
     required: true
+  },
+  exhaustedIds: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -164,5 +169,11 @@ const getPositionStyle = (index) => {
 .question-wrapper {
   position: absolute;
   z-index: 2;
+}
+
+.question-wrapper.exhausted {
+  cursor: not-allowed;
+  filter: grayscale(100%) brightness(0.6);
+  pointer-events: none;
 }
 </style>

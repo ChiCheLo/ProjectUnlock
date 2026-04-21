@@ -1019,6 +1019,7 @@ def save_answer_record(request):
         answered_wastetime = data.get('answered_wastetime')
         is_correct = data.get('is_correct')
         input_answer = data.get('input_answer', '')
+        session_id = data.get('session_id')
 
         if student_id is None:
             return Response({'ok': False, 'error': 'student_id 不能為空'}, status=400)
@@ -1028,12 +1029,14 @@ def save_answer_record(request):
             return Response({'ok': False, 'error': 'answered_wastetime 不能為空'}, status=400)
         if is_correct is None:
             return Response({'ok': False, 'error': 'is_correct 不能為空'}, status=400)
+        if session_id is None:
+            return Response({'ok': False, 'error': 'session_id 不能為空'}, status=400)
 
         cursor = connection.cursor()
         cursor.execute("""
-            INSERT INTO answerRecord_table (student_id, question_id, answered_wastetime, is_currect, input_answer)
-            VALUES (%s, %s, %s, %s, %s)
-        """, [int(student_id), int(question_id), int(answered_wastetime), bool(is_correct), str(input_answer)])
+            INSERT INTO answerRecord_table (student_id, question_id, answered_wastetime, is_currect, input_answer, session_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, [int(student_id), int(question_id), int(answered_wastetime), bool(is_correct), str(input_answer), int(session_id)])
         connection.connection.commit()
 
         record_id = cursor.lastrowid
@@ -1043,4 +1046,86 @@ def save_answer_record(request):
         import traceback
         error_trace = traceback.format_exc()
         print(f"save_answer_record error: {err}\n{error_trace}")
+        return Response({'ok': False, 'error': str(err)}, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
+def get_session_exhausted_questions(request):
+    """
+    查詢同一 session 中，所有組員合計答對 >= 3 次的題目 ID 清單
+
+    Query param: ?session_id=X
+
+    Response:
+    {
+        "ok": true,
+        "exhausted_question_ids": [1, 5, 12]
+    }
+    """
+    try:
+        session_id = request.GET.get('session_id')
+        if not session_id:
+            return Response({'ok': False, 'error': 'session_id 不能為空'}, status=400)
+
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT ar.question_id
+            FROM answerRecord_table ar
+            JOIN student_table s ON ar.student_id = s.student_id
+            WHERE s.session_id = %s AND ar.is_currect = 1
+            GROUP BY ar.question_id
+            HAVING COUNT(*) >= 3
+        """, [int(session_id)])
+
+        rows = cursor.fetchall()
+        exhausted_ids = [row[0] for row in rows]
+
+        return Response({'ok': True, 'exhausted_question_ids': exhausted_ids})
+
+    except Exception as err:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"get_session_exhausted_questions error: {err}\n{error_trace}")
+        return Response({'ok': False, 'error': str(err)}, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
+def get_my_correct_questions(request):
+    """
+    查詢某個學生在此 session 中，自己答對過的題目 ID 清單
+
+    Query params: ?student_id=X&session_id=Y
+
+    Response:
+    {
+        "ok": true,
+        "correct_question_ids": [3, 7]
+    }
+    """
+    try:
+        student_id = request.GET.get('student_id')
+        session_id = request.GET.get('session_id')
+        if not student_id:
+            return Response({'ok': False, 'error': 'student_id 不能為空'}, status=400)
+        if not session_id:
+            return Response({'ok': False, 'error': 'session_id 不能為空'}, status=400)
+
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT DISTINCT question_id
+            FROM answerRecord_table
+            WHERE student_id = %s AND session_id = %s AND is_currect = 1
+        """, [int(student_id), int(session_id)])
+
+        rows = cursor.fetchall()
+        correct_ids = [row[0] for row in rows]
+
+        return Response({'ok': True, 'correct_question_ids': correct_ids})
+
+    except Exception as err:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"get_my_correct_questions error: {err}\n{error_trace}")
         return Response({'ok': False, 'error': str(err)}, status=500)

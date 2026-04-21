@@ -31,6 +31,8 @@ urlpatterns = [
     path('quiz-questions/', views.get_quiz_questions, name='get_quiz_questions'),
     path('quiz-answer-check/', views.quiz_answer_check, name='quiz_answer_check'),
     path('answer-record/', views.save_answer_record, name='save_answer_record'),
+    path('session-exhausted-questions/', views.get_session_exhausted_questions, name='get_session_exhausted_questions'),
+    path('my-correct-questions/', views.get_my_correct_questions, name='get_my_correct_questions'),
     
     # 調試 API
     path('debug/clues-table/', views.debug_clues_table, name='debug_clues_table'),

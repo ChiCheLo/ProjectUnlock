@@ -90,6 +90,13 @@ const isDomainCompleted = (domainName: string) => {
 
 // 檢查是否從 ChatRoom 答對後返回
 onMounted(() => {
+  // 從 ChatRoom 決策完畢導回時，reload 一次以更新最新狀態
+  if (sessionStorage.getItem('reloadOnReturn') === '1') {
+    sessionStorage.removeItem('reloadOnReturn')
+    window.location.reload()
+    return
+  }
+
   if (route.query.showDecision === 'true' && route.query.domain) {
     decisionDomain.value = route.query.domain as string
     showDecisionModal.value = true
@@ -423,8 +430,14 @@ function handleDecision(choice: '建立' | '不建立') {
     </main>
 
   <Sidebar
+    v-if="showSidebar"
     :showSidebar="showSidebar"
+    :sidebarSection="sidebarSection"
+    :buildingCards="buildingCards"
+    :players="players"
+    :clues="clues"
     @toggle-sidebar="closeSidebar"
+    @toggle-section="setSidebarSection"
   />
 
     <!-- 決策彈出視窗 -->

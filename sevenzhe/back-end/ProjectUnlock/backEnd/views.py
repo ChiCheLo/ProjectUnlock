@@ -1284,7 +1284,7 @@ def get_session_subject_leaderboard(request):
 @api_view(['POST'])
 @csrf_exempt
 def save_group_policy(request):
-    """寫入 groupPolicy_table：group_id + policy_id"""
+    """寫入 groupPolicy_table：group_id + policy_id，並同步更新 groupValue_table"""
     try:
         body = json.loads(request.body)
         group_id = body.get('group_id')
@@ -1294,10 +1294,38 @@ def save_group_policy(request):
             return Response({'ok': False, 'error': 'group_id and policy_id are required'}, status=400)
 
         with connection.cursor() as cursor:
+            # 1. 寫入 groupPolicy_table
             cursor.execute(
                 "INSERT INTO groupPolicy_table (group_id, policy_id) VALUES (%s, %s)",
                 [int(group_id), int(policy_id)]
             )
+
+            # 2. 取得 policy 數值
+            cursor.execute(
+                "SELECT economy, population, healthy, food, electricity FROM policy_table WHERE policy_id = %s",
+                [int(policy_id)]
+            )
+            row = cursor.fetchone()
+            if row:
+                economy, population, healthy, food, electricity = row
+                # 3. 更新 groupValue_table（各欄位加上 policy 的 delta）
+                cursor.execute("""
+                    UPDATE groupValue_table
+                    SET
+                        economy     = economy     + %s,
+                        population  = population  + %s,
+                        healthy     = healthy     + %s,
+                        food        = food        + %s,
+                        electricity = electricity + %s
+                    WHERE group_id = %s
+                """, [
+                    economy or 0,
+                    population or 0,
+                    healthy or 0,
+                    food or 0,
+                    electricity or 0,
+                    int(group_id)
+                ])
 
         return Response({'ok': True})
 

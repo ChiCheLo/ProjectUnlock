@@ -265,6 +265,7 @@ const policyCardData: Record<number, { title: string; image: string }> = {
 function closePolicyCardAndNavigate() {
   if (policyCardTimer) clearTimeout(policyCardTimer);
   showPolicyCard.value = false;
+  sessionStorage.setItem('reloadOnReturn', '1');
   router.push({ path: '/sea-turtle-soup' });
 }
 

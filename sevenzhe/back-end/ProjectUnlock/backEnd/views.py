@@ -1279,3 +1279,30 @@ def get_session_subject_leaderboard(request):
         error_trace = traceback.format_exc()
         print(f"get_session_subject_leaderboard error: {err}\n{error_trace}")
         return Response({'ok': False, 'error': str(err)}, status=500)
+
+
+@api_view(['POST'])
+@csrf_exempt
+def save_group_policy(request):
+    """寫入 groupPolicy_table：group_id + policy_id"""
+    try:
+        body = json.loads(request.body)
+        group_id = body.get('group_id')
+        policy_id = body.get('policy_id')
+
+        if group_id is None or policy_id is None:
+            return Response({'ok': False, 'error': 'group_id and policy_id are required'}, status=400)
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO groupPolicy_table (group_id, policy_id) VALUES (%s, %s)",
+                [int(group_id), int(policy_id)]
+            )
+
+        return Response({'ok': True})
+
+    except Exception as err:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"save_group_policy error: {err}\n{error_trace}")
+        return Response({'ok': False, 'error': str(err)}, status=500)

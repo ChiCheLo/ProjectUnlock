@@ -214,13 +214,125 @@ const userInput = ref("");
 --------------------------------------------- */
 const hasRevealed = ref(false);
 
+// 各域 AI 詢問的問題
+const domainDecisionQuestion: Record<string, string> = {
+  火域: '是否建設火力發電廠？',
+  土域: '是否處理堰塞湖？',
+  金域: '是否開放使用汞煉金？',
+  光域: '是否推行夜間觀光？',
+  水域: '是否限制捕魚方式？',
+  雷域: '是否建設核能發電廠？',
+  木域: '是否砍伐闊葉林改為種植經濟作物？',
+  風域: '是否建設風力發電機？',
+  空域: '疫情過後是否大力推行觀光？',
+};
+
+// 域 + 是/否 → policy_id（null 代表不寫入）
+const domainPolicyMap: Record<string, { yes: number | null; no: number | null }> = {
+  火域: { yes: null, no: 1 },
+  土域: { yes: null, no: 5 },
+  金域: { yes: null, no: 7 },
+  光域: { yes: null, no: 10 },
+  水域: { yes: 12,   no: null },
+  雷域: { yes: null, no: 15 },
+  木域: { yes: null, no: 19 },
+  風域: { yes: null, no: 20 },
+  空域: { yes: null, no: 24 },
+};
+
+// 等待玩家回答是/否的狀態
+const waitingForDecision = ref(false);
+
+// 政策卡展示
+const showPolicyCard = ref(false);
+const displayPolicyTitle = ref('');
+const displayPolicyImage = ref('');
+let policyCardTimer: ReturnType<typeof setTimeout> | null = null;
+
+// policy_id → { title, image }
+const policyCardData: Record<number, { title: string; image: string }> = {
+  1:  { title: '不建設火力發電廠',    image: '/policyCards/火域/不建設.png' },
+  5:  { title: '堰塞湖開發為觀光區',  image: '/policyCards/土域/觀光.png' },
+  7:  { title: '不得使用汞提煉金',    image: '/policyCards/金域/不可.png' },
+  10: { title: '不推行夜間觀光',      image: '/policyCards/光域/不可.png' },
+  12: { title: '限制捕魚方式',        image: '/policyCards/水域/限制.png' },
+  15: { title: '不建設核能發電廠',    image: '/policyCards/雷域/不建設.png' },
+  19: { title: '不砍伐闊葉林換取經濟', image: '/policyCards/木域/不種植.png' },
+  20: { title: '不建設風力發電機',    image: '/policyCards/風域/不建設.png' },
+  24: { title: '不大力推行觀光',      image: '/policyCards/空域/不推行.png' },
+};
+
+function closePolicyCardAndNavigate() {
+  if (policyCardTimer) clearTimeout(policyCardTimer);
+  showPolicyCard.value = false;
+  router.push({ path: '/sea-turtle-soup' });
+}
+
+function showPolicyCardOverlay(policyId: number | null) {
+  if (policyId !== null && policyId !== undefined && policyCardData[policyId]) {
+    displayPolicyTitle.value = policyCardData[policyId].title;
+    displayPolicyImage.value = policyCardData[policyId].image;
+    showPolicyCard.value = true;
+    policyCardTimer = setTimeout(() => closePolicyCardAndNavigate(), 5000);
+  } else {
+    router.push({ path: '/sea-turtle-soup' });
+  }
+}
+
 onMounted(() => {
   loadDomainStory();
 });
 
+async function saveGroupPolicy(policyId: number) {
+  const groupId = localStorage.getItem('group_id');
+  if (!groupId) {
+    console.warn('No group_id in localStorage');
+    return;
+  }
+  try {
+    await fetch('http://127.0.0.1:8000/api/save-group-policy/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ group_id: Number(groupId), policy_id: policyId }),
+    });
+  } catch (err) {
+    console.error('save_group_policy failed:', err);
+  }
+}
+
 async function sendMessage() {
   const text = userInput.value.trim();
   if (!text) return;
+
+  // 如果正在等待決策，偵測「是」/「否」
+  if (waitingForDecision.value) {
+    messages.value.push({ sender: 'player', text });
+    userInput.value = '';
+
+    const answer = text.trim();
+    const isYes = answer === '是' || answer === 'yes' || answer === 'YES';
+    const isNo  = answer === '否' || answer === 'no'  || answer === 'NO';
+
+    if (!isYes && !isNo) {
+      messages.value.push({ sender: 'ai', text: '請回答「是」或「否」。' });
+      return;
+    }
+
+    waitingForDecision.value = false;
+    const policyEntry = domainPolicyMap[domainName];
+    const policyId = isYes ? policyEntry?.yes : policyEntry?.no;
+
+    if (policyId !== null && policyId !== undefined) {
+      await saveGroupPolicy(policyId);
+      messages.value.push({ sender: 'ai', text: `好的，已記錄您的決策！政策卡已發送給您的組別。`, isReveal: true });
+    } else {
+      messages.value.push({ sender: 'ai', text: `好的，已記錄您的決策！`, isReveal: true });
+    }
+
+    // 展示政策卡後導回
+    setTimeout(() => showPolicyCardOverlay(policyId ?? null), 800);
+    return;
+  }
 
   // 加入玩家訊息
   messages.value.push({ sender: "player", text });
@@ -258,6 +370,14 @@ async function sendMessage() {
         text: `【湯底揭曉】\n${data.truth}`,
         isReveal: true
       });
+      // AI 在聊天室發出對應域的決策問題
+      const question = domainDecisionQuestion[domainName];
+      if (question) {
+        setTimeout(() => {
+          messages.value.push({ sender: 'ai', text: `【國家決策】${question}\n請輸入「是」或「否」。` });
+          waitingForDecision.value = true;
+        }, 600);
+      }
     }
   } catch (err) {
     console.error("call openai proxy failed:", err);
@@ -272,16 +392,9 @@ async function sendMessage() {
 }
 
 
-/* 返回：若已答對則帶參數到 SeaTurtleSoup 顯示決策 */
+/* 返回 */
 function goBack() {
-  if (hasRevealed.value) {
-    router.push({
-      path: '/sea-turtle-soup',
-      query: { showDecision: 'true', domain: domainName }
-    });
-  } else {
-    router.back();
-  }
+  router.push({ path: '/sea-turtle-soup' });
 }
 </script>
 <template>
@@ -322,7 +435,7 @@ function goBack() {
       <input
         v-model="userInput"
         @keyup.enter="sendMessage"
-        placeholder="輸入你的推理或提問…"
+        :placeholder="waitingForDecision ? '請輸入「是」或「否」…' : '輸入你的推理或提問…'"
       />
       <button @click="sendMessage">送出</button>
     </div>
@@ -332,6 +445,17 @@ function goBack() {
       :showSidebar="showSidebar"
       @toggle-sidebar="closeSidebar"
     />
+
+    <!-- 政策卡展示 Overlay -->
+    <div v-if="showPolicyCard" class="policy-card-overlay" @click.self="closePolicyCardAndNavigate">
+      <div class="policy-card-box">
+        <button class="policy-card-close" @click="closePolicyCardAndNavigate">✕</button>
+        <p class="policy-card-label">你們組別獲得政策卡</p>
+        <h2 class="policy-card-title">{{ displayPolicyTitle }}</h2>
+        <img class="policy-card-img" :src="displayPolicyImage" :alt="displayPolicyTitle" />
+        <p class="policy-card-hint">5 秒後自動關閉，或點擊旁邊關閉</p>
+      </div>
+    </div>
 
   </div>
 </template>
@@ -443,7 +567,7 @@ function goBack() {
 }
 
 /* ---------------------------------------------
-   底部輸入框
+   底部輸入框（等待決策時顯示提示）
 --------------------------------------------- */
 .chat-input-bar {
   position: fixed;
@@ -473,5 +597,147 @@ function goBack() {
   color: white;
   cursor: pointer;
   font-size: 14px;
+}
+
+/* ---------------------------------------------
+   決策 Modal
+--------------------------------------------- */
+.decision-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.decision-modal {
+  background: white;
+  border-radius: 20px;
+  padding: 40px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.decision-modal-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 8px;
+}
+
+.decision-modal-subtitle {
+  font-size: 16px;
+  color: #666;
+  margin: 0 0 24px;
+}
+
+.decision-modal-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.decision-modal-buttons button {
+  padding: 14px 24px;
+  border: 2px solid;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  width: 100%;
+}
+
+.decision-modal-buttons button:hover {
+  opacity: 0.8;
+}
+
+.decision-btn-yes {
+  background: #c8e6c9;
+  color: #2e7d32;
+  border-color: #81c784;
+}
+
+.decision-btn-no {
+  background: #ffcdd2;
+  color: #c62828;
+  border-color: #ef9a9a;
+}
+
+/* ---------------------------------------------
+   政策卡展示 Overlay
+--------------------------------------------- */
+.policy-card-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.policy-card-box {
+  position: relative;
+  background: white;
+  border-radius: 24px;
+  padding: 32px 28px 24px;
+  max-width: 360px;
+  width: 88%;
+  text-align: center;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+  animation: pop-in 0.3s ease;
+}
+
+@keyframes pop-in {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+.policy-card-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #888;
+  line-height: 1;
+}
+
+.policy-card-label {
+  font-size: 13px;
+  color: #888;
+  margin: 0 0 6px;
+  letter-spacing: 0.5px;
+}
+
+.policy-card-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+  margin: 0 0 16px;
+}
+
+.policy-card-img {
+  width: 100%;
+  border-radius: 12px;
+  object-fit: contain;
+  max-height: 300px;
+}
+
+.policy-card-hint {
+  font-size: 12px;
+  color: #aaa;
+  margin: 12px 0 0;
 }
 </style>

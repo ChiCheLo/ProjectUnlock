@@ -35,6 +35,7 @@ urlpatterns = [
     path('my-correct-questions/', views.get_my_correct_questions, name='get_my_correct_questions'),
     path('session-leaderboard/', views.get_session_leaderboard, name='get_session_leaderboard'),
     path('session-subject-leaderboard/', views.get_session_subject_leaderboard, name='get_session_subject_leaderboard'),
+    path('save-group-policy/', views.save_group_policy, name='save_group_policy'),
     
     # 調試 API
     path('debug/clues-table/', views.debug_clues_table, name='debug_clues_table'),

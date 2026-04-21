@@ -124,6 +124,7 @@ function handleLogout() {
 </script>
 
 <template>
+  <teleport to="body">
   <transition name="slide-sidebar">
     <div v-if="showSidebar" class="sidebar-overlay" @click="close">
       <div class="sidebar" @click.stop>
@@ -215,6 +216,7 @@ function handleLogout() {
       </transition>
     </div>
   </transition>
+  </teleport>
 </template>
 
 <style scoped>

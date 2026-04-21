@@ -251,15 +251,18 @@ let policyCardTimer: ReturnType<typeof setTimeout> | null = null;
 
 // policy_id → { title, image }
 const policyCardData: Record<number, { title: string; image: string }> = {
-  1:  { title: '不建設火力發電廠',    image: '/policyCards/火域/不建設.png' },
-  5:  { title: '堰塞湖開發為觀光區',  image: '/policyCards/土域/觀光.png' },
-  7:  { title: '不得使用汞提煉金',    image: '/policyCards/金域/不可.png' },
-  10: { title: '不推行夜間觀光',      image: '/policyCards/光域/不可.png' },
-  12: { title: '限制捕魚方式',        image: '/policyCards/水域/限制.png' },
-  15: { title: '不建設核能發電廠',    image: '/policyCards/雷域/不建設.png' },
-  19: { title: '不砍伐闊葉林換取經濟', image: '/policyCards/木域/不種植.png' },
-  20: { title: '不建設風力發電機',    image: '/policyCards/風域/不建設.png' },
-  24: { title: '不大力推行觀光',      image: '/policyCards/空域/不推行.png' },
+  1:  { title: '不建設火力發電廠',        image: '/policyCards/火域/不建設.png' },
+  2:  { title: '海邊建立火力發電廠',      image: '/policyCards/火域/海邊.png' },
+  3:  { title: '河邊建立火力發電廠',      image: '/policyCards/火域/河邊.png' },
+  4:  { title: '無水源區域建立火力發電廠', image: '/policyCards/火域/無水.png' },
+  5:  { title: '堰塞湖開發為觀光區',      image: '/policyCards/土域/觀光.png' },
+  7:  { title: '不得使用汞提煉金',        image: '/policyCards/金域/不可.png' },
+  10: { title: '不推行夜間觀光',          image: '/policyCards/光域/不可.png' },
+  12: { title: '限制捕魚方式',            image: '/policyCards/水域/限制.png' },
+  15: { title: '不建設核能發電廠',        image: '/policyCards/雷域/不建設.png' },
+  19: { title: '不砍伐闊葉林換取經濟',   image: '/policyCards/木域/不種植.png' },
+  20: { title: '不建設風力發電機',        image: '/policyCards/風域/不建設.png' },
+  24: { title: '不大力推行觀光',          image: '/policyCards/空域/不推行.png' },
 };
 
 function closePolicyCardAndNavigate() {
@@ -276,7 +279,51 @@ function showPolicyCardOverlay(policyId: number | null) {
     showPolicyCard.value = true;
     policyCardTimer = setTimeout(() => closePolicyCardAndNavigate(), 5000);
   } else {
+    sessionStorage.setItem('reloadOnReturn', '1');
     router.push({ path: '/sea-turtle-soup' });
+  }
+}
+
+/* ---------------------------------------------
+   地圖放置 Overlay（火域選「是」）
+--------------------------------------------- */
+// 10x10 虛擬座標 → CSS 百分比（原點左上角，y 向下為正取絕對值）
+function mapCoordToPercent(x: number, y: number) {
+  return { left: `${(x / 10) * 100}%`, top: `${(Math.abs(y) / 10) * 100}%` };
+}
+
+const showMapOverlay = ref(false);
+
+// 各域的地圖放置設定（之後可擴充其他域）
+type MapPlacement = {
+  image: string;
+  positions: { x: number; y: number; policyId: number }[];
+};
+const domainMapPlacement: Record<string, MapPlacement> = {
+  火域: {
+    image: '/地圖放置區/海邊火力發電廠放置區.png',
+    positions: [
+      { x: 2, y: -2, policyId: 2 },
+      { x: 4, y: -3, policyId: 3 },
+      { x: 5, y: -4, policyId: 4 },
+    ],
+  },
+};
+
+async function selectMapPosition(policyId: number) {
+  // 寫入選擇的 policy
+  await saveGroupPolicy(policyId);
+  showMapOverlay.value = false;
+  setTimeout(() => showPolicyCardOverlay(policyId), 300);
+}
+
+function tryShowMapOverlay(isYes: boolean, policyId: number | null) {
+  const placement = domainMapPlacement[domainName];
+  if (isYes && placement) {
+    showMapOverlay.value = true;
+    // 不自動關閉，玩家必須點擊位置選擇
+  } else {
+    showPolicyCardOverlay(policyId);
   }
 }
 
@@ -330,8 +377,8 @@ async function sendMessage() {
       messages.value.push({ sender: 'ai', text: `好的，已記錄您的決策！`, isReveal: true });
     }
 
-    // 展示政策卡後導回
-    setTimeout(() => showPolicyCardOverlay(policyId ?? null), 800);
+    // 展示地圖（若有）→ 再展示政策卡後導回
+    setTimeout(() => tryShowMapOverlay(isYes, policyId ?? null), 800);
     return;
   }
 
@@ -446,6 +493,30 @@ function goBack() {
       :showSidebar="showSidebar"
       @toggle-sidebar="closeSidebar"
     />
+
+    <!-- 地圖放置 Overlay（火域選「是」） -->
+    <div v-if="showMapOverlay" class="map-overlay">
+      <div class="map-overlay-box">
+        <p class="map-overlay-label">請選擇建設位置</p>
+        <div class="map-container">
+          <img class="map-bg" src="/安洛克地圖.png" alt="安洛克地圖" />
+          <button
+            v-for="(pos, i) in domainMapPlacement[domainName]?.positions"
+            :key="i"
+            class="map-placement-btn"
+            :style="mapCoordToPercent(pos.x, pos.y)"
+            @click="selectMapPosition(pos.policyId)"
+          >
+            <img
+              class="map-placement"
+              :src="domainMapPlacement[domainName].image"
+              :alt="`位置${i+1}`"
+            />
+          </button>
+        </div>
+        <p class="map-overlay-hint">點擊地圖上的位置圖示以選擇建設地點</p>
+      </div>
+    </div>
 
     <!-- 政策卡展示 Overlay -->
     <div v-if="showPolicyCard" class="policy-card-overlay" @click.self="closePolicyCardAndNavigate">
@@ -671,6 +742,99 @@ function goBack() {
   background: #ffcdd2;
   color: #c62828;
   border-color: #ef9a9a;
+}
+
+/* ---------------------------------------------
+   地圖放置 Overlay
+--------------------------------------------- */
+.map-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1900;
+}
+
+.map-overlay-box {
+  position: relative;
+  background: #1a1a2e;
+  border-radius: 20px;
+  padding: 24px 20px 16px;
+  max-width: 520px;
+  width: 92%;
+  text-align: center;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  animation: pop-in 0.3s ease;
+}
+
+.map-overlay-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #aaa;
+  line-height: 1;
+}
+
+.map-overlay-label {
+  font-size: 14px;
+  color: #ccc;
+  margin: 0 0 12px;
+  letter-spacing: 0.5px;
+}
+
+.map-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.map-bg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.map-placement-btn {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  width: 12%;
+  transition: transform 0.2s;
+}
+
+.map-placement-btn:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.map-placement {
+  width: 100%;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 0 6px rgba(255, 100, 50, 0.9));
+  animation: pulse-glow 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(255, 100, 50, 0.9)); }
+  50%       { filter: drop-shadow(0 0 14px rgba(255, 160, 50, 1)); }
+}
+
+.map-overlay-hint {
+  font-size: 12px;
+  color: #888;
+  margin: 10px 0 0;
 }
 
 /* ---------------------------------------------

@@ -564,15 +564,26 @@ def get_group_policies(request):
     """
     try:
         group_id = request.GET.get('group_id')
-        
+        session_id = request.GET.get('session_id')
+
         if not group_id:
             return Response({
                 'ok': False,
                 'error': '缺少 group_id 參數'
             }, status=400)
-        
+
         # 使用原生 SQL 查詢，因為表格沒有外鍵關係
         with connection.cursor() as cursor:
+            # 若有傳入 session_id，則確認此 group 屬於該 session
+            if session_id:
+                cursor.execute("""
+                    SELECT COUNT(*) FROM student_table
+                    WHERE group_id = %s AND session_id = %s
+                """, [group_id, session_id])
+                count = cursor.fetchone()[0]
+                if count == 0:
+                    return Response({'ok': True, 'policies': []})
+
             cursor.execute("""
                 SELECT 
                     p.policy_id,

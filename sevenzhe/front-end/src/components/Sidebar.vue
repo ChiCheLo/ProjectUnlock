@@ -96,10 +96,11 @@ async function loadStudentClues() {
 // ─── 政策卡片 API ────────────────────────────────────────
 async function fetchGroupPolicies() {
   const groupId = localStorage.getItem('group_id')
+  const sessionId = localStorage.getItem('session_id')
   if (!groupId) return
 
   try {
-    const response = await fetch(`/api/group-policies/?group_id=${groupId}`)
+    const response = await fetch(`/api/group-policies/?group_id=${groupId}&session_id=${sessionId}`)
     const data = await response.json()
 
     if (data.ok && data.policies) {

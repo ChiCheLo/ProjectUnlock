@@ -29,6 +29,7 @@ urlpatterns = [
     
     # 題目 API
     path('quiz-questions/', views.get_quiz_questions, name='get_quiz_questions'),
+    path('quiz-answer-check/', views.quiz_answer_check, name='quiz_answer_check'),
     
     # 調試 API
     path('debug/clues-table/', views.debug_clues_table, name='debug_clues_table'),

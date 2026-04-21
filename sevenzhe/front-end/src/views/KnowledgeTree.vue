@@ -358,29 +358,77 @@ const closeModal = () => {
   }, 300) // 等待動畫完成
 }
 
-const normalizeAnswer = (text: string) => {
-  // 移除空格、轉小寫，用於比對答案
-  return text.toLowerCase().replace(/\s+/g, '')
+// 線索 overlay 相關
+const showClueOverlay = ref(false)
+const clueUrl = ref<string | null>(null)
+const clueId = ref<number | null>(null)
+let clueTimer: ReturnType<typeof setTimeout> | null = null
+
+const openClueOverlay = (url: string, id: number) => {
+  clueUrl.value = url
+  clueId.value = id
+  showClueOverlay.value = true
+  if (clueTimer) clearTimeout(clueTimer)
+  clueTimer = setTimeout(() => {
+    showClueOverlay.value = false
+  }, 10000) // 10 秒自動關閉
 }
 
-const handleSubmit = (userAnswer: string) => {
+const closeClueOverlay = () => {
+  showClueOverlay.value = false
+  if (clueTimer) clearTimeout(clueTimer)
+}
+
+const isSubmitting = ref(false)
+
+const handleSubmit = async (userAnswer: string) => {
   if (!selectedQuestion.value || !currentSubject.value) return
+  if (isSubmitting.value) return
 
-  const correctAnswer = selectedQuestion.value.answer
-  const normalizedUserAnswer = normalizeAnswer(userAnswer)
-  const normalizedCorrectAnswer = normalizeAnswer(correctAnswer)
+  const studentId = localStorage.getItem('student_id')
+  if (!studentId) {
+    console.warn('找不到 student_id，無法判定答案')
+    return
+  }
 
-  if (normalizedUserAnswer === normalizedCorrectAnswer) {
-    // 答對
-    resultState.value = 'correct'
-    // 更新完成題數
-    if (!selectedQuestion.value.completed) {
-      selectedQuestion.value.completed = true
-      currentSubject.value.progress.completed++
+  isSubmitting.value = true
+  try {
+    const resp = await fetch('http://127.0.0.1:8000/api/quiz-answer-check/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question_id: selectedQuestion.value.id,
+        user_answer: userAnswer,
+        student_id: Number(studentId)
+      })
+    })
+    const data = await resp.json()
+
+    if (!data.ok) {
+      console.error('quiz-answer-check 錯誤:', data.error)
+      resultState.value = 'wrong'
+      return
     }
-  } else {
-    // 答錯
+
+    if (data.correct) {
+      resultState.value = 'correct'
+      // 更新完成題數
+      if (!selectedQuestion.value.completed) {
+        selectedQuestion.value.completed = true
+        currentSubject.value.progress.completed++
+      }
+      // 若有線索，顯示 overlay
+      if (data.clue_url) {
+        openClueOverlay(data.clue_url, data.clue_id)
+      }
+    } else {
+      resultState.value = 'wrong'
+    }
+  } catch (err) {
+    console.error('呼叫 quiz-answer-check 失敗:', err)
     resultState.value = 'wrong'
+  } finally {
+    isSubmitting.value = false
   }
 }
 
@@ -770,6 +818,20 @@ function handleLogout() {
       </div>
     </transition>
 
+    <!-- 線索 Overlay -->
+    <transition name="fade">
+      <div v-if="showClueOverlay" class="clue-overlay" @click="closeClueOverlay">
+        <div class="clue-overlay-inner" @click.stop>
+          <div class="clue-overlay-header">
+            <span class="clue-overlay-title">🎉 答對了！獲得新線索</span>
+            <button class="clue-overlay-close" @click="closeClueOverlay">✕</button>
+          </div>
+          <img v-if="clueUrl" :src="clueUrl" class="clue-overlay-img" alt="線索圖片" />
+          <p class="clue-overlay-hint">點擊任意處或等待 10 秒後關閉</p>
+        </div>
+      </div>
+    </transition>
+
     <!-- 模態框 -->
     <QuestionModal
       v-if="selectedQuestion"
@@ -783,6 +845,72 @@ function handleLogout() {
 </template>
 
 <style scoped>
+/* 線索 Overlay */
+.clue-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.clue-overlay-inner {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px 32px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.clue-overlay-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.clue-overlay-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
+}
+
+.clue-overlay-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #666;
+  line-height: 1;
+}
+
+.clue-overlay-img {
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.clue-overlay-hint {
+  font-size: 13px;
+  color: #999;
+  margin: 0;
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+
 /* 導覽列相關樣式 */
 .header {
   border-bottom: 1px solid #C2C2C2;

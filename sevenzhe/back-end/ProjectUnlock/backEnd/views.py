@@ -711,6 +711,148 @@ def get_domain_story(request):
         return Response({'ok': False, 'error': str(err), 'traceback': traceback.format_exc()}, status=500)
 
 
+@api_view(['POST'])
+@csrf_exempt
+def quiz_answer_check(request):
+    """
+    使用 OpenAI 判定玩家答案是否正確，答對後回傳線索並寫入 studentClue_table
+
+    Request body:
+    {
+        "question_id": 1,
+        "user_answer": "玩家的答案",
+        "student_id": 3
+    }
+
+    Response:
+    {
+        "ok": true,
+        "correct": true/false,
+        "clue_id": 1,          ← 答對才有
+        "clue_url": "/clues/火域/xxx.png"  ← 答對才有
+    }
+    """
+    try:
+        data = request.data
+        question_id = data.get('question_id')
+        user_answer = data.get('user_answer', '').strip()
+        student_id = data.get('student_id')
+
+        if not question_id:
+            return Response({'ok': False, 'error': 'question_id 不能為空'}, status=400)
+        if not user_answer:
+            return Response({'ok': False, 'error': '答案不能為空'}, status=400)
+        if not student_id:
+            return Response({'ok': False, 'error': 'student_id 不能為空'}, status=400)
+
+        # 從 question_table 取得題目與標準答案
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT content, answer FROM question_table WHERE question_id = %s LIMIT 1
+        """, [question_id])
+        row = cursor.fetchone()
+
+        if not row:
+            return Response({'ok': False, 'error': f'找不到題目 question_id={question_id}'}, status=404)
+
+        question_content, correct_answer = row[0], row[1]
+
+        # 使用 OpenAI Function Calling 判定答案
+        client = get_openai_client()
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """你是答題判定系統。
+
+【規則】
+1. 只能透過 answer_check 函數回應
+2. 判斷玩家的回答是否符合題目的標準答案，語意相近即可算正確
+3. 若題目要求「任意兩種」，玩家只需答出兩種且正確即可
+4. 不要求完全一字不差，但核心概念必須正確
+5. 大小寫、空格、標點符號不影響判定"""
+                },
+                {
+                    "role": "user",
+                    "content": f"題目：{question_content}\n標準答案：{correct_answer}\n玩家的回答：{user_answer}"
+                }
+            ],
+            tools=[{
+                "type": "function",
+                "function": {
+                    "name": "answer_check",
+                    "description": "判定玩家答案是否正確",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "is_correct": {
+                                "type": "boolean",
+                                "description": "玩家的答案是否正確"
+                            }
+                        },
+                        "required": ["is_correct"]
+                    }
+                }
+            }],
+            tool_choice={"type": "function", "function": {"name": "answer_check"}},
+            temperature=0,
+            max_tokens=64
+        )
+
+        tool_call = response.choices[0].message.tool_calls[0] if response.choices[0].message.tool_calls else None
+        if not tool_call:
+            return Response({'ok': False, 'error': 'AI 判定失敗'}, status=500)
+
+        result = json.loads(tool_call.function.arguments)
+        is_correct = result.get('is_correct', False)
+
+        if not is_correct:
+            return Response({'ok': True, 'correct': False})
+
+        # 答對：查詢對應的線索（clue_table.question_id = question_id）
+        cursor.execute("""
+            SELECT clue_id, clue FROM clue_table WHERE question_id = %s LIMIT 1
+        """, [question_id])
+        clue_row = cursor.fetchone()
+
+        if not clue_row:
+            # 沒有對應線索，仍回報答對
+            return Response({'ok': True, 'correct': True, 'clue_id': None, 'clue_url': None})
+
+        clue_id, clue_path = clue_row[0], clue_row[1]
+
+        # 將線索加入 studentClue_table（若已存在則忽略）
+        try:
+            cursor.execute("""
+                INSERT IGNORE INTO studentClue_table (student_id, clue_id) VALUES (%s, %s)
+            """, [student_id, clue_id])
+            from django.db import connection as conn
+            conn.connection.commit()
+        except Exception as e:
+            print(f"[WARN] 插入 studentClue_table 失敗: {e}")
+
+        # 將 assets/ 前綴轉換為前端可用的 /clues/... 路徑
+        clue_url = clue_path
+        if clue_url.startswith('assets/clues/'):
+            clue_url = '/' + clue_url[len('assets/'):]
+        elif clue_url.startswith('assets/'):
+            clue_url = '/' + clue_url[len('assets/'):]
+
+        return Response({
+            'ok': True,
+            'correct': True,
+            'clue_id': clue_id,
+            'clue_url': clue_url
+        })
+
+    except Exception as err:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"quiz_answer_check error: {err}\n{error_trace}")
+        return Response({'ok': False, 'error': str(err)}, status=500)
+
+
 @api_view(['GET'])
 @csrf_exempt
 def get_group_policy_count(request):

@@ -33,6 +33,8 @@ urlpatterns = [
     path('answer-record/', views.save_answer_record, name='save_answer_record'),
     path('session-exhausted-questions/', views.get_session_exhausted_questions, name='get_session_exhausted_questions'),
     path('my-correct-questions/', views.get_my_correct_questions, name='get_my_correct_questions'),
+    path('session-leaderboard/', views.get_session_leaderboard, name='get_session_leaderboard'),
+    path('session-subject-leaderboard/', views.get_session_subject_leaderboard, name='get_session_subject_leaderboard'),
     
     # 調試 API
     path('debug/clues-table/', views.debug_clues_table, name='debug_clues_table'),

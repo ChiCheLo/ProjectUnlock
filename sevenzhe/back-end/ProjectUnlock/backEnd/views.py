@@ -1129,3 +1129,153 @@ def get_my_correct_questions(request):
         error_trace = traceback.format_exc()
         print(f"get_my_correct_questions error: {err}\n{error_trace}")
         return Response({'ok': False, 'error': str(err)}, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
+def get_session_leaderboard(request):
+    """
+    取得同一 session 的排行榜（依答對題數降序，再依平均作答時間升序）
+
+    Query param: ?session_id=X
+
+    Response:
+    {
+        "ok": true,
+        "total_questions": 45,
+        "leaderboard": [
+            {
+                "rank": 1,
+                "student_id": 3,
+                "student_name": "小明",
+                "correct_count": 12,
+                "avg_time": 28
+            },
+            ...
+        ]
+    }
+    """
+    try:
+        session_id = request.GET.get('session_id')
+        if not session_id:
+            return Response({'ok': False, 'error': 'session_id 不能為空'}, status=400)
+
+        cursor = connection.cursor()
+
+        # 查詢 question_table 總題數
+        cursor.execute("SELECT COUNT(*) FROM question_table")
+        total_questions = cursor.fetchone()[0]
+
+        # 查詢同 session 所有學生的答對數與平均作答時間
+        cursor.execute("""
+            SELECT
+                s.student_id,
+                s.student_name,
+                COUNT(ar.id) AS correct_count,
+                ROUND(AVG(ar.answered_wastetime)) AS avg_time
+            FROM student_table s
+            LEFT JOIN answerRecord_table ar
+                ON s.student_id = ar.student_id
+                AND ar.is_currect = 1
+                AND ar.session_id = %s
+            WHERE s.session_id = %s
+            GROUP BY s.student_id, s.student_name
+            ORDER BY correct_count DESC, avg_time ASC
+        """, [int(session_id), int(session_id)])
+
+        rows = cursor.fetchall()
+        leaderboard = []
+        for rank, row in enumerate(rows, start=1):
+            leaderboard.append({
+                'rank': rank,
+                'student_id': row[0],
+                'student_name': row[1],
+                'correct_count': row[2] or 0,
+                'avg_time': int(row[3]) if row[3] else 0
+            })
+
+        return Response({'ok': True, 'total_questions': total_questions, 'leaderboard': leaderboard})
+
+    except Exception as err:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"get_session_leaderboard error: {err}\n{error_trace}")
+        return Response({'ok': False, 'error': str(err)}, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
+def get_session_subject_leaderboard(request):
+    """
+    取得同一 session 中，指定科目的排行榜
+
+    Query params: ?session_id=X&subject=物理
+
+    Response:
+    {
+        "ok": true,
+        "total_questions": 9,
+        "leaderboard": [
+            {
+                "rank": 1,
+                "student_id": 3,
+                "student_name": "小明",
+                "correct_count": 7,
+                "avg_time": 25
+            },
+            ...
+        ]
+    }
+    """
+    try:
+        session_id = request.GET.get('session_id')
+        subject = request.GET.get('subject')
+        if not session_id:
+            return Response({'ok': False, 'error': 'session_id 不能為空'}, status=400)
+        if not subject:
+            return Response({'ok': False, 'error': 'subject 不能為空'}, status=400)
+
+        cursor = connection.cursor()
+
+        # 該科目總題數
+        cursor.execute("SELECT COUNT(*) FROM question_table WHERE subject = %s", [subject])
+        total_questions = cursor.fetchone()[0]
+
+        # 同 session 所有學生在該科目的答對數與平均作答時間
+        cursor.execute("""
+            SELECT
+                s.student_id,
+                s.student_name,
+                COUNT(ar.id) AS correct_count,
+                ROUND(AVG(ar.answered_wastetime)) AS avg_time
+            FROM student_table s
+            LEFT JOIN answerRecord_table ar
+                ON s.student_id = ar.student_id
+                AND ar.is_currect = 1
+                AND ar.session_id = %s
+                AND ar.question_id IN (
+                    SELECT question_id FROM question_table WHERE subject = %s
+                )
+            WHERE s.session_id = %s
+            GROUP BY s.student_id, s.student_name
+            ORDER BY correct_count DESC, avg_time ASC
+        """, [int(session_id), subject, int(session_id)])
+
+        rows = cursor.fetchall()
+        leaderboard = []
+        for rank, row in enumerate(rows, start=1):
+            leaderboard.append({
+                'rank': rank,
+                'student_id': row[0],
+                'student_name': row[1],
+                'correct_count': row[2] or 0,
+                'avg_time': int(row[3]) if row[3] else 0
+            })
+
+        return Response({'ok': True, 'total_questions': total_questions, 'leaderboard': leaderboard})
+
+    except Exception as err:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"get_session_subject_leaderboard error: {err}\n{error_trace}")
+        return Response({'ok': False, 'error': str(err)}, status=500)

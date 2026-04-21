@@ -100,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Header from '../components/Header.vue'
 import Sidebar from '../components/Sidebar.vue'
@@ -142,7 +142,7 @@ const clues = ref([
   '消波塊能夠破壞海浪結構，使其在上岸前便消弭。'
 ])
 
-const buildingCards = ref<BuildingCard[]>([
+/*const buildingCards = ref<BuildingCard[]>([
   {
     id: 1,
     title: '火力發電廠',
@@ -242,21 +242,92 @@ const buildingCards = ref<BuildingCard[]>([
       { type: '電力', value: '+3', icon: '#FFEE7C' }
     ]
   }
-])
+])*/
 
 let lastScrollPosition = 0
 
 // 當前選中的科目
 const currentSubject = ref(subjects[0])
 
-// 當前顯示的玩家列表
+// 真實總排行資料
+const overallLeaderboard = ref<any[]>([])
+const totalQuestions = ref(0)
+
+// 科目 ID → 中文名稱對照（對應 question_table.subject）
+const subjectIdToName: Record<string, string> = {
+  physics: '物理',
+  chemistry: '化學',
+  biology: '生物',
+  'earth-science': '地科',
+  geography: '地理'
+}
+
+// 各科目真實排行資料快取
+const subjectLeaderboards = ref<Record<string, any[]>>({})
+const subjectTotalQuestions = ref<Record<string, number>>({})
+
+async function loadSessionLeaderboard() {
+  const sessionId = localStorage.getItem('session_id')
+  if (!sessionId) return
+  try {
+    const resp = await fetch(`http://127.0.0.1:8000/api/session-leaderboard/?session_id=${sessionId}`)
+    const data = await resp.json()
+    if (data.ok) {
+      totalQuestions.value = data.total_questions
+      overallLeaderboard.value = data.leaderboard.map((p: any) => ({
+        rank: p.rank,
+        playerName: p.student_name,
+        questionsAnswered: p.correct_count,
+        totalQuestions: data.total_questions,
+        avgTime: p.avg_time
+      }))
+    }
+  } catch (err) {
+    console.warn('載入排行榜失敗:', err)
+  }
+}
+
+async function loadSubjectLeaderboard(subjectId: string) {
+  const sessionId = localStorage.getItem('session_id')
+  if (!sessionId) return
+  const subjectName = subjectIdToName[subjectId]
+  if (!subjectName) return
+  try {
+    const resp = await fetch(`http://127.0.0.1:8000/api/session-subject-leaderboard/?session_id=${sessionId}&subject=${encodeURIComponent(subjectName)}`)
+    const data = await resp.json()
+    if (data.ok) {
+      subjectTotalQuestions.value[subjectId] = data.total_questions
+      subjectLeaderboards.value[subjectId] = data.leaderboard.map((p: any) => ({
+        rank: p.rank,
+        playerName: p.student_name,
+        questionsAnswered: p.correct_count,
+        totalQuestions: data.total_questions,
+        avgTime: p.avg_time
+      }))
+    }
+  } catch (err) {
+    console.warn(`載入 ${subjectName} 排行榜失敗:`, err)
+  }
+}
+
+onMounted(() => {
+  loadSessionLeaderboard()
+})
+
+// 當前顯示的玩家列表（只取前五名）
 const currentPlayers = computed(() => {
-  return leaderboardData[currentSubject.value.id as keyof typeof leaderboardData] || []
+  if (currentSubject.value.id === 'overall') {
+    return overallLeaderboard.value.slice(0, 5)
+  }
+  return (subjectLeaderboards.value[currentSubject.value.id] || []).slice(0, 5)
 })
 
 // 選擇科目
 const selectSubject = (subject: any) => {
   currentSubject.value = subject
+  if (subject.id !== 'overall' && !subjectLeaderboards.value[subject.id]) {
+    loadSubjectLeaderboard(subject.id)
+  }
 }
 
 // 從 localStorage 讀取學生名字

@@ -6,14 +6,14 @@ export const subjects = [
     color: '#667eea'
   },
   {
-    id: 'chemistry',
-    name: '化學',
-    color: '#10B981'
-  },
-  {
     id: 'physics',
     name: '物理',
     color: '#3B82F6'
+  },
+  {
+    id: 'chemistry',
+    name: '化學',
+    color: '#10B981'
   },
   {
     id: 'biology',

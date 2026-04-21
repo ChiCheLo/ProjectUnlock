@@ -974,3 +974,57 @@ def get_completed_domains(request):
             'error': str(err),
             'traceback': traceback.format_exc()
         }, status=500)
+
+
+@api_view(['POST'])
+@csrf_exempt
+def save_answer_record(request):
+    """
+    儲存答題紀錄到 answerRecord_table
+
+    Request body:
+    {
+        "student_id": 3,
+        "question_id": 1,
+        "answered_wastetime": 42,
+        "is_correct": true
+    }
+
+    Response:
+    {
+        "ok": true,
+        "record_id": 5
+    }
+    """
+    try:
+        data = request.data
+        student_id = data.get('student_id')
+        question_id = data.get('question_id')
+        answered_wastetime = data.get('answered_wastetime')
+        is_correct = data.get('is_correct')
+        input_answer = data.get('input_answer', '')
+
+        if student_id is None:
+            return Response({'ok': False, 'error': 'student_id 不能為空'}, status=400)
+        if question_id is None:
+            return Response({'ok': False, 'error': 'question_id 不能為空'}, status=400)
+        if answered_wastetime is None:
+            return Response({'ok': False, 'error': 'answered_wastetime 不能為空'}, status=400)
+        if is_correct is None:
+            return Response({'ok': False, 'error': 'is_correct 不能為空'}, status=400)
+
+        cursor = connection.cursor()
+        cursor.execute("""
+            INSERT INTO answerRecord_table (student_id, question_id, answered_wastetime, is_currect, input_answer)
+            VALUES (%s, %s, %s, %s, %s)
+        """, [int(student_id), int(question_id), int(answered_wastetime), bool(is_correct), str(input_answer)])
+        connection.connection.commit()
+
+        record_id = cursor.lastrowid
+        return Response({'ok': True, 'record_id': record_id})
+
+    except Exception as err:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"save_answer_record error: {err}\n{error_trace}")
+        return Response({'ok': False, 'error': str(err)}, status=500)

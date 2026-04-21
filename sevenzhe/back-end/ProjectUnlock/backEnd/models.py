@@ -117,3 +117,17 @@ class Question(models.Model):
     class Meta:
         db_table = 'question_table'
         managed = False
+
+
+class AnswerRecord(models.Model):
+    """答題紀錄表"""
+    id = models.AutoField(primary_key=True)
+    student_id = models.IntegerField()
+    question_id = models.IntegerField()
+    answered_wastetime = models.IntegerField()  # 秒數
+    is_currect = models.BooleanField()  # 注意：資料庫欄位名稱為 is_currect
+    input_answer = models.TextField()   # 學生輸入的答案
+
+    class Meta:
+        db_table = 'answerRecord_table'
+        managed = False

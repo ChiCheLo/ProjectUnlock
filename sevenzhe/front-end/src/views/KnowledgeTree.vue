@@ -337,14 +337,19 @@ onMounted(() => {
   scrollToBottom(0)
 })
 
+// ─── 答題計時器 ──────────────────────────────────────────
+const answerStartTime = ref<number | null>(null)
+
 const openModal = (question: any) => {
   selectedQuestion.value = question
   showModal.value = true
   resultState.value = 'idle'
+  answerStartTime.value = Date.now()  // 開始計時
 }
 
 const closeModal = () => {
   showModal.value = false
+  answerStartTime.value = null  // 取消計時，不儲存紀錄
   setTimeout(() => {
     selectedQuestion.value = null
     resultState.value = 'idle'
@@ -384,6 +389,12 @@ const handleSubmit = async (userAnswer: string) => {
     return
   }
 
+  // 計算作答時間（秒）
+  const wasteTime = answerStartTime.value
+    ? Math.round((Date.now() - answerStartTime.value) / 1000)
+    : 0
+  answerStartTime.value = null
+
   isSubmitting.value = true
   try {
     const resp = await fetch('http://127.0.0.1:8000/api/quiz-answer-check/', {
@@ -400,6 +411,8 @@ const handleSubmit = async (userAnswer: string) => {
     if (!data.ok) {
       console.error('quiz-answer-check 錯誤:', data.error)
       resultState.value = 'wrong'
+      // 仍然儲存答錯紀錄
+      await saveAnswerRecord(Number(studentId), selectedQuestion.value.id, wasteTime, false, userAnswer)
       return
     }
 
@@ -417,11 +430,39 @@ const handleSubmit = async (userAnswer: string) => {
     } else {
       resultState.value = 'wrong'
     }
+
+    // 儲存答題紀錄
+    await saveAnswerRecord(Number(studentId), selectedQuestion.value.id, wasteTime, data.correct, userAnswer)
+
   } catch (err) {
     console.error('呼叫 quiz-answer-check 失敗:', err)
     resultState.value = 'wrong'
   } finally {
     isSubmitting.value = false
+  }
+}
+
+async function saveAnswerRecord(
+  studentId: number,
+  questionId: number,
+  wasteTime: number,
+  isCorrect: boolean,
+  inputAnswer: string = ''
+) {
+  try {
+    await fetch('http://127.0.0.1:8000/api/answer-record/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        student_id: studentId,
+        question_id: questionId,
+        answered_wastetime: wasteTime,
+        is_correct: isCorrect,
+        input_answer: inputAnswer
+      })
+    })
+  } catch (err) {
+    console.warn('儲存答題紀錄失敗:', err)
   }
 }
 

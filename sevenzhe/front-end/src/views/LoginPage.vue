@@ -46,6 +46,7 @@ const handleLogin = async () => {
       localStorage.setItem('student_id', data.student_id)
       localStorage.setItem('student_name', data.student_name)
       localStorage.setItem('group_id', data.group_id)
+      localStorage.setItem('session_id', data.session_id)
       
       // 導向首頁
       router.push('/')

@@ -66,7 +66,8 @@ def student_login(request):
             'student_id': student.student_id,
             'student_name': student.student_name,
             'group_id': student.group_id,
-            'account': student.account
+            'account': student.account,
+            'session_id': student.session_id
         })
 
     except Student.DoesNotExist:
@@ -275,6 +276,7 @@ def get_group_members(request):
     try:
         group_id = request.query_params.get('group_id')
         student_id = request.query_params.get('student_id')
+        session_id = request.query_params.get('session_id')
 
         if not group_id:
             return Response({
@@ -282,8 +284,10 @@ def get_group_members(request):
                 'error': '組別ID不能為空'
             }, status=400)
 
-        # 查詢該組別的所有成員
+        # 查詢同組且同 session 的成員
         members = Student.objects.filter(group_id=group_id)
+        if session_id:
+            members = members.filter(session_id=session_id)
 
         # 如果提供了 student_id，則排除自己
         if student_id:
@@ -295,7 +299,8 @@ def get_group_members(request):
                 'student_id': member.student_id,
                 'student_name': member.student_name,
                 'account': member.account,
-                'group_id': member.group_id
+                'group_id': member.group_id,
+                'session_id': member.session_id
             }
             for member in members
         ]

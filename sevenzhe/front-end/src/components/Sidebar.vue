@@ -49,9 +49,10 @@ async function loadGroupMembers() {
   try {
     const groupId = localStorage.getItem('group_id')
     const studentId = localStorage.getItem('student_id')
+    const sessionId = localStorage.getItem('session_id')
     if (!groupId) return
 
-    const response = await fetch(`/api/group-members/?group_id=${groupId}&student_id=${studentId}`)
+    const response = await fetch(`/api/group-members/?group_id=${groupId}&student_id=${studentId}&session_id=${sessionId}`)
     const data = await response.json()
     if (data.ok) {
       groupMembers.value = data.data

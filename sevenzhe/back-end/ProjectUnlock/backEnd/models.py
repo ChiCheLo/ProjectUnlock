@@ -9,6 +9,7 @@ class Student(models.Model):
     password = models.CharField(max_length=100)
     student_name = models.CharField(max_length=100)
     group_id = models.IntegerField()
+    session_id = models.IntegerField()
 
     def __str__(self):
         return f"{self.student_name} ({self.account})"

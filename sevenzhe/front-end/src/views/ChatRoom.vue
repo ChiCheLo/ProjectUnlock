@@ -329,14 +329,8 @@ function goBack() {
 
     <!-- Sidebar -->
     <Sidebar
-      v-if="showSidebar"
       :showSidebar="showSidebar"
-      :sidebarSection="sidebarSection"
-      :buildingCards="buildingCards"
-      :players="players"
-      :clues="clues"
       @toggle-sidebar="closeSidebar"
-      @toggle-section="setSidebarSection"
     />
 
   </div>

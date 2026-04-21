@@ -423,14 +423,8 @@ function handleDecision(choice: '建立' | '不建立') {
     </main>
 
   <Sidebar
-    v-if="showSidebar"
     :showSidebar="showSidebar"
-    :sidebarSection="sidebarSection"
-    :buildingCards="buildingCards"
-    :players="players"
-    :clues="clues"
     @toggle-sidebar="closeSidebar"
-    @toggle-section="setSidebarSection"
   />
 
     <!-- 決策彈出視窗 -->

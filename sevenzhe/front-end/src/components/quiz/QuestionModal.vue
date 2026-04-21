@@ -55,7 +55,7 @@ watch(() => props.show, (newVal) => {
         <!-- 結果顯示區域 -->
         <div v-if="resultState === 'correct'" class="result-box result-correct">
           <div class="result-title">✓ 答對了！</div>
-          <div class="result-explanation">解答：{{ question.explanation }}</div>
+          <div class="result-explanation">解答：{{ question.answer }}</div>
         </div>
 
         <div v-else-if="resultState === 'wrong'" class="result-box result-wrong">

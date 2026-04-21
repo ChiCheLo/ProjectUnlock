@@ -181,20 +181,27 @@ const loadQuestions = async () => {
   }
 }
 
+// 輪詢 timer，用於即時同步其他玩家的答題狀態
+let exhaustedPollTimer: ReturnType<typeof setInterval> | null = null
+
 onMounted(async () => {
   await loadQuestions()
   await loadExhaustedQuestions()
   await loadMyCorrectQuestions()
   scrollToBottom(0)
-  
-  // // 添加滾輪事件監聽
-  // window.addEventListener('wheel', handleWheel, { passive: false })
+
+  // 每 5 秒輪詢一次，同步其他人答題造成的反白變化
+  exhaustedPollTimer = setInterval(async () => {
+    await loadExhaustedQuestions()
+  }, 5000)
 })
 
-// // 清理事件監聽
-// onUnmounted(() => {
-//   window.removeEventListener('wheel', handleWheel)
-// })
+onUnmounted(() => {
+  if (exhaustedPollTimer) {
+    clearInterval(exhaustedPollTimer)
+    exhaustedPollTimer = null
+  }
+})
 
 // 導覽列相關變數
 const isNotificationActive = ref(true)

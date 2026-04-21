@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import Header from '../components/Header.vue'
+import Sidebar from '../components/Sidebar.vue'
 
 interface StatIndicator {
   label: string
@@ -351,103 +352,8 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="page-wrapper" :class="{ 'sidebar-open': showSidebar }">
-    <!-- Sidebar Overlay (covers entire screen including header) -->
-    <transition name="slide-sidebar">
-      <div v-if="showSidebar" class="sidebar-overlay" @click="toggleSidebar">
-        <div class="sidebar" @click.stop>
-          <div class="sidebar-header">
-            <button class="sidebar-close-btn" aria-label="Close menu" @click="toggleSidebar">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <path d="M3 4H21V6H3V4ZM3 11H21V13H3V11ZM3 18H21V20H3V18Z" fill="#333333"/>
-              </svg>
-            </button>
-            <span class="sidebar-player-name">{{ studentName }}</span>
-          </div>
-
-          <div class="sidebar-menu">
-            <div class="menu-item-wrapper">
-              <button class="menu-item" @click="toggleSection('group')">
-                組員
-              </button>
-              <svg v-if="sidebarSection === 'group'" class="menu-arrow" width="11" height="12" viewBox="0 0 11 12" fill="none">
-                <path d="M4.92758e-05 2.0032C4.91279e-05 0.4636 1.66672 -0.498652 3.00005 0.271148L9.91694 4.26461C11.2503 5.03441 11.2503 6.95892 9.91694 7.72872L3.00005 11.7222C1.66672 12.492 4.8823e-05 11.5297 4.90604e-05 9.99013L4.92758e-05 2.0032Z" fill="#EEEEEE"/>
-              </svg>
-            </div>
-            <div class="menu-divider"></div>
-            
-            <div class="menu-item-wrapper">
-              <button class="menu-item" @click="toggleSection('clues')">
-                個人擁有線索
-              </button>
-              <svg v-if="sidebarSection === 'clues'" class="menu-arrow" width="11" height="12" viewBox="0 0 11 12" fill="none">
-                <path d="M4.92758e-05 2.0032C4.91279e-05 0.4636 1.66672 -0.498652 3.00005 0.271148L9.91694 4.26461C11.2503 5.03441 11.2503 6.95892 9.91694 7.72872L3.00005 11.7222C1.66672 12.492 4.8823e-05 11.5297 4.90604e-05 9.99013L4.92758e-05 2.0032Z" fill="#EEEEEE"/>
-              </svg>
-            </div>
-            <div class="menu-divider"></div>
-            
-            <div class="menu-item-wrapper">
-              <button class="menu-item" @click="toggleSection('construction')">
-                國家建設狀態
-              </button>
-              <svg v-if="sidebarSection === 'construction'" class="menu-arrow" width="11" height="12" viewBox="0 0 11 12" fill="none">
-                <path d="M4.92758e-05 2.0032C4.91279e-05 0.4636 1.66672 -0.498652 3.00005 0.271148L9.91694 4.26461C11.2503 5.03441 11.2503 6.95892 9.91694 7.72872L3.00005 11.7222C1.66672 12.492 4.8823e-05 11.5297 4.90604e-05 9.99013L4.92758e-05 2.0032Z" fill="#EEEEEE"/>
-              </svg>
-            </div>
-            <div class="menu-divider"></div>
-
-            <button class="menu-item logout-btn" @click="handleLogout">
-              登出
-            </button>
-          </div>
-        </div>
-
-        <transition name="slide-content">
-          <div v-if="sidebarSection === 'group'" class="section-content">
-            <div class="player-list">
-              <button 
-                v-for="member in groupMembers" 
-                :key="member.student_id"
-                class="player-btn"
-              >
-                {{ member.student_name }}
-              </button>
-            </div>
-          </div>
-        </transition>
-
-        <transition name="slide-content">
-          <div v-if="sidebarSection === 'clues'" class="section-content clues-content">
-            <div class="clues-list">
-              <div
-                v-for="(clue, index) in clues"
-                :key="index"
-                class="clue-item"
-              >
-                <div class="clue-image">
-                  <img :src="clue.clue_url" :alt="`線索 ${index + 1}`" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </transition>
-
-        <transition name="slide-content">
-          <div v-if="sidebarSection === 'construction'" class="section-content construction-content">
-            <div class="building-cards-wrapper">
-              <div class="building-cards">
-                <img 
-                  v-for="card in buildingCards" 
-                  :key="card.id" 
-                  :src="card.image" 
-                  :alt="card.title" 
-                  class="building-card-img" 
-                />
-              </div>
-            </div>
-          </div>
-        </transition>
-      </div>
-    </transition>
+    <!-- Sidebar -->
+    <Sidebar :showSidebar="showSidebar" @toggle-sidebar="toggleSidebar" />
 
     <!-- Header -->
     <Header @toggle-sidebar="toggleSidebar" @toggle-notification="toggleNotification" :isNotificationActive="isNotificationActive" />

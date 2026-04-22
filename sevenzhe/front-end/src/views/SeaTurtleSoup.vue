@@ -396,6 +396,7 @@ function handleDecision(choice: '建立' | '不建立') {
                   <div class="domain-circle">
                     <img v-if="domain.image" :src="domain.image" :alt="domain.name" class="domain-img" />
                     <div v-else :style="{ background: domain.color }" class="domain-fallback"></div>
+                    <span class="domain-name-label">{{ domain.name }}</span>
                   </div>
                 </button>
               </div>
@@ -1022,6 +1023,22 @@ function handleDecision(choice: '建立' | '不建立') {
   justify-content: center;
   transition: all 0.2s ease;
   background: #f0f0f0;
+  position: relative;
+}
+
+.domain-name-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  padding: 4px 0;
+  letter-spacing: 1px;
+  pointer-events: none;
 }
 
 .domain-item:hover .domain-circle,

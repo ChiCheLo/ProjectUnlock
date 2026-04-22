@@ -517,7 +517,7 @@ async function sendMessage() {
 
     if (policyId !== null && policyId !== undefined) {
       await saveGroupPolicy(policyId);
-      const aiDecisionText = `好的，已記錄您的決策！政策卡已發送給您的組別。`;
+      const aiDecisionText = `好的，已記錄您的決策！`;
       messages.value.push({ sender: 'ai', text: aiDecisionText, isReveal: true });
       saveChat(1, text);
       saveChat(0, aiDecisionText);

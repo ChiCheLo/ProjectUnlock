@@ -406,7 +406,7 @@ const handleSubmit = async (userAnswer: string) => {
 
   isSubmitting.value = true
   try {
-    const resp = await fetch('http://127.0.0.1:8000/api/quiz-answer-check/', {
+    const resp = await fetch('/api/quiz-answer-check/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -469,7 +469,7 @@ async function saveAnswerRecord(
     return
   }
   try {
-    await fetch('http://127.0.0.1:8000/api/answer-record/', {
+    await fetch('/api/answer-record/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -493,7 +493,7 @@ async function loadExhaustedQuestions() {
   const sessionId = localStorage.getItem('session_id')
   if (!sessionId) return
   try {
-    const resp = await fetch(`http://127.0.0.1:8000/api/session-exhausted-questions/?session_id=${sessionId}`)
+    const resp = await fetch(`/api/session-exhausted-questions/?session_id=${sessionId}`)
     const data = await resp.json()
     if (data.ok) {
       exhaustedQuestionIds.value = data.exhausted_question_ids
@@ -511,7 +511,7 @@ async function loadMyCorrectQuestions() {
   const sessionId = localStorage.getItem('session_id')
   if (!studentId || !sessionId) return
   try {
-    const resp = await fetch(`http://127.0.0.1:8000/api/my-correct-questions/?student_id=${studentId}&session_id=${sessionId}`)
+    const resp = await fetch(`/api/my-correct-questions/?student_id=${studentId}&session_id=${sessionId}`)
     const data = await resp.json()
     if (data.ok) {
       myCorrectIds.value = data.correct_question_ids

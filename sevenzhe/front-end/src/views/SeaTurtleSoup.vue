@@ -30,7 +30,7 @@ const loadPolicyCount = async () => {
       return
     }
 
-    const response = await fetch(`http://127.0.0.1:8000/api/group-policy-count/?group_id=${groupId}`)
+    const response = await fetch(`/api/group-policy-count/?group_id=${groupId}`)
     const data = await response.json()
 
     if (data.ok) {
@@ -50,7 +50,7 @@ const loadCluesCount = async () => {
       return
     }
 
-    const response = await fetch(`http://127.0.0.1:8000/api/group-clues-count/?group_id=${groupId}`)
+    const response = await fetch(`/api/group-clues-count/?group_id=${groupId}`)
     const data = await response.json()
 
     if (data.ok) {
@@ -72,7 +72,7 @@ const loadCompletedDomains = async () => {
       return
     }
 
-    const response = await fetch(`http://127.0.0.1:8000/api/completed-domains/?group_id=${groupId}`)
+    const response = await fetch(`/api/completed-domains/?group_id=${groupId}`)
     const data = await response.json()
 
     if (data.ok) {
@@ -255,6 +255,30 @@ const clues = ref([
 const isNotificationActive = ref(true)
 const showNotification = ref(true)
 
+// 進入域時的線索 overlay
+const showEntryClueOverlay = ref(false)
+const entryClueImages = ref<{ clue_id: number; clue_url: string }[]>([])
+let entryClueTimer: ReturnType<typeof setTimeout> | null = null
+let pendingDomain = ref<Domain | null>(null)
+
+function closeEntryClueOverlay() {
+  if (entryClueTimer) clearTimeout(entryClueTimer)
+  showEntryClueOverlay.value = false
+  if (pendingDomain.value) {
+    navigateToDomain(pendingDomain.value)
+    pendingDomain.value = null
+  }
+}
+
+function navigateToDomain(domain: Domain) {
+  const routeName = 'seaturtlesoup-domain'
+  try {
+    router.push({ name: routeName, params: { domain: domain.name } })
+  } catch (e) {
+    router.push(`/sea-turtle-soup/${encodeURIComponent(domain.name)}`)
+  }
+}
+
 function getDomainPosition(index: number) {
   // 3x3 網格佈局（9個域）
   // 0 1 2
@@ -283,16 +307,10 @@ function selectDomain(domain: Domain) {
     console.log('[SeaTurtleSoup] 域已完成，無法選取:', domain.name)
     return
   }
-  
+
   console.log('[SeaTurtleSoup] selectDomain called:', domain)
   selectedDomain.value = domain.name
-  const routeName = 'seaturtlesoup-domain'
-  try {
-    router.push({ name: routeName, params: { domain: domain.name } })
-  } catch (e) {
-    // fallback to path
-    router.push(`/sea-turtle-soup/${encodeURIComponent(domain.name)}`)
-  }
+  navigateToDomain(domain)
 }
 
 function handleBack() {
@@ -428,6 +446,24 @@ function handleDecision(choice: '建立' | '不建立') {
         </div>
       </transition>
     </main>
+
+    <!-- 進入域線索 Overlay -->
+    <div v-if="showEntryClueOverlay" class="entry-clue-overlay" @click.self="closeEntryClueOverlay">
+      <div class="entry-clue-box">
+        <button class="entry-clue-close" @click="closeEntryClueOverlay">✕</button>
+        <p class="entry-clue-label">🔍 獲得線索</p>
+        <div class="entry-clue-images">
+          <img
+            v-for="item in entryClueImages"
+            :key="item.clue_id"
+            class="entry-clue-img"
+            :src="item.clue_url"
+            :alt="`線索${item.clue_id}`"
+          />
+        </div>
+        <p class="entry-clue-hint">5 秒後自動進入，或點擊旁邊關閉</p>
+      </div>
+    </div>
 
   <Sidebar
     v-if="showSidebar"
@@ -1385,6 +1421,75 @@ function handleDecision(choice: '建立' | '不建立') {
   .stats-pill-item {
     flex: 1 0 20%;
   }
+}
+
+/* 進入域線索 Overlay */
+.entry-clue-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 3000;
+}
+
+.entry-clue-box {
+  position: relative;
+  background: #1c2340;
+  border-radius: 20px;
+  padding: 28px 24px 20px;
+  max-width: 480px;
+  width: 92%;
+  text-align: center;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  animation: clue-pop 0.3s ease;
+}
+
+@keyframes clue-pop {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+.entry-clue-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #aaa;
+  line-height: 1;
+}
+
+.entry-clue-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f0d080;
+  margin: 0 0 14px;
+  letter-spacing: 0.5px;
+}
+
+.entry-clue-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.entry-clue-img {
+  width: calc(50% - 6px);
+  max-width: 200px;
+  border-radius: 10px;
+  object-fit: contain;
+  background: #fff;
+}
+
+.entry-clue-hint {
+  font-size: 12px;
+  color: #777;
+  margin: 12px 0 0;
 }
 
 /* 決策彈出視窗樣式 */

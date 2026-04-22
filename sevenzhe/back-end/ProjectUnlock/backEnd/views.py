@@ -1334,3 +1334,73 @@ def save_group_policy(request):
         error_trace = traceback.format_exc()
         print(f"save_group_policy error: {err}\n{error_trace}")
         return Response({'ok': False, 'error': str(err)}, status=500)
+
+
+@api_view(['POST'])
+@csrf_exempt
+def grant_domain_entry_clues(request):
+    """
+    進入域時，將該域 (soup_title = domain) 對應的 question_id IS NULL 的線索
+    寫入 studentClue_table，並回傳線索圖片 URL 清單。
+    
+    Request body:
+    {
+        "student_id": 1,
+        "domain": "火域"
+    }
+    
+    Response:
+    {
+        "ok": True,
+        "clues": [{ "clue_id": 7, "clue_url": "/clues/..." }, ...]
+    }
+    """
+    try:
+        data = request.data
+        student_id = data.get('student_id')
+        domain = data.get('domain', '').strip()
+
+        if not student_id or not domain:
+            return Response({'ok': False, 'error': 'student_id 與 domain 不能為空'}, status=400)
+
+        with connection.cursor() as cursor:
+            # 1. 查詢 soup_id
+            cursor.execute(
+                "SELECT soup_id FROM soup_table WHERE soup_title = %s LIMIT 1",
+                [domain]
+            )
+            row = cursor.fetchone()
+            if not row:
+                return Response({'ok': True, 'clues': []})
+            soup_id = row[0]
+
+            # 2. 查詢該域 question_id IS NULL 的線索
+            cursor.execute(
+                "SELECT clue_id, clue FROM clue_table WHERE soup_id = %s AND question_id IS NULL",
+                [soup_id]
+            )
+            clue_rows = cursor.fetchall()
+            if not clue_rows:
+                return Response({'ok': True, 'clues': []})
+
+            # 3. 寫入 studentClue_table（跳過已存在的）
+            for (clue_id, _) in clue_rows:
+                cursor.execute(
+                    "SELECT 1 FROM studentClue_table WHERE student_id = %s AND clue_id = %s LIMIT 1",
+                    [student_id, clue_id]
+                )
+                if not cursor.fetchone():
+                    cursor.execute(
+                        "INSERT INTO studentClue_table (student_id, clue_id) VALUES (%s, %s)",
+                        [student_id, clue_id]
+                    )
+
+        clues_result = [
+            {'clue_id': r[0], 'clue_url': r[1] or ''}
+            for r in clue_rows
+        ]
+        return Response({'ok': True, 'clues': clues_result})
+
+    except Exception as err:
+        import traceback
+        return Response({'ok': False, 'error': str(err) + '\n' + traceback.format_exc()}, status=500)

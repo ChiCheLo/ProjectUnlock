@@ -80,6 +80,10 @@ async function loadStudentClues() {
           clueUrl = clueUrl.replace('assets/clues/', '/clues/')
         } else if (clueUrl.startsWith('assets/')) {
           clueUrl = clueUrl.replace('assets/', '/clues/')
+        } else if (clueUrl.includes('public/clues/')) {
+          clueUrl = clueUrl.replace('public/clues/', '/clues/')
+        } else if (clueUrl.startsWith('public/')) {
+          clueUrl = clueUrl.replace('public/', '/')
         }
         return { ...clue, clue_url: clueUrl }
       })

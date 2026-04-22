@@ -413,7 +413,49 @@ function tryShowMapOverlay(isYes: boolean, policyId: number | null) {
 
 onMounted(() => {
   loadDomainStory();
+  loadAndShowEntryClues();
 });
+
+// 進入域線索 overlay
+const showEntryClueOverlay = ref(false);
+const entryClueImages = ref<{ clue_id: number; clue_url: string }[]>([]);
+let entryClueTimer: ReturnType<typeof setTimeout> | null = null;
+
+function closeEntryClueOverlay() {
+  if (entryClueTimer) clearTimeout(entryClueTimer);
+  showEntryClueOverlay.value = false;
+}
+
+function normalizeClueUrl(url: string): string {
+  if (url.includes('public/clues/')) return url.replace('public/clues/', '/clues/');
+  if (url.startsWith('public/')) return url.replace('public/', '/');
+  if (url.includes('assets/clues/')) return url.replace('assets/clues/', '/clues/');
+  if (url.startsWith('assets/')) return url.replace('assets/', '/clues/');
+  return url;
+}
+
+async function loadAndShowEntryClues() {
+  const studentId = localStorage.getItem('student_id');
+  if (!studentId) return;
+  try {
+    const res = await fetch('/api/grant-domain-entry-clues/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: Number(studentId), domain: domainName }),
+    });
+    const data = await res.json();
+    if (data.ok && data.clues && data.clues.length > 0) {
+      entryClueImages.value = data.clues.map((c: { clue_id: number; clue_url: string }) => ({
+        ...c,
+        clue_url: normalizeClueUrl(c.clue_url),
+      }));
+      showEntryClueOverlay.value = true;
+      entryClueTimer = setTimeout(() => closeEntryClueOverlay(), 5000);
+    }
+  } catch (err) {
+    console.error('loadAndShowEntryClues failed:', err);
+  }
+}
 
 async function saveGroupPolicy(policyId: number) {
   const groupId = localStorage.getItem('group_id');
@@ -610,6 +652,24 @@ function goBack() {
         <h2 class="policy-card-title">{{ displayPolicyTitle }}</h2>
         <img class="policy-card-img" :src="displayPolicyImage" :alt="displayPolicyTitle" />
         <p class="policy-card-hint">5 秒後自動關閉，或點擊旁邊關閉</p>
+      </div>
+    </div>
+
+    <!-- 進入域線索 Overlay -->
+    <div v-if="showEntryClueOverlay" class="entry-clue-overlay" @click.self="closeEntryClueOverlay">
+      <div class="entry-clue-box">
+        <button class="entry-clue-close" @click="closeEntryClueOverlay">✕</button>
+        <p class="entry-clue-label">🔍 獲得線索</p>
+        <div class="entry-clue-images">
+          <img
+            v-for="item in entryClueImages"
+            :key="item.clue_id"
+            class="entry-clue-img"
+            :src="item.clue_url"
+            :alt="`線索${item.clue_id}`"
+          />
+        </div>
+        <p class="entry-clue-hint">5 秒後自動關閉，或點擊旁邊關閉</p>
       </div>
     </div>
 
@@ -987,6 +1047,70 @@ function goBack() {
 .policy-card-hint {
   font-size: 12px;
   color: #aaa;
+  margin: 12px 0 0;
+}
+
+/* 進入域線索 Overlay */
+.entry-clue-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2100;
+}
+
+.entry-clue-box {
+  position: relative;
+  background: #1c2340;
+  border-radius: 20px;
+  padding: 28px 24px 20px;
+  max-width: 720px;
+  width: 95%;
+  text-align: center;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  animation: pop-in 0.3s ease;
+}
+
+.entry-clue-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #aaa;
+  line-height: 1;
+}
+
+.entry-clue-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f0d080;
+  margin: 0 0 14px;
+  letter-spacing: 0.5px;
+}
+
+.entry-clue-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.entry-clue-img {
+  width: calc(50% - 6px);
+  max-width: 300px;
+  border-radius: 10px;
+  object-fit: contain;
+  background: #fff;
+}
+
+.entry-clue-hint {
+  font-size: 12px;
+  color: #777;
   margin: 12px 0 0;
 }
 </style>

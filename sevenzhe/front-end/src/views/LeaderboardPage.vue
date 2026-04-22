@@ -270,7 +270,7 @@ async function loadSessionLeaderboard() {
   const sessionId = localStorage.getItem('session_id')
   if (!sessionId) return
   try {
-    const resp = await fetch(`http://127.0.0.1:8000/api/session-leaderboard/?session_id=${sessionId}`)
+    const resp = await fetch(`/api/session-leaderboard/?session_id=${sessionId}`)
     const data = await resp.json()
     if (data.ok) {
       totalQuestions.value = data.total_questions
@@ -293,7 +293,7 @@ async function loadSubjectLeaderboard(subjectId: string) {
   const subjectName = subjectIdToName[subjectId]
   if (!subjectName) return
   try {
-    const resp = await fetch(`http://127.0.0.1:8000/api/session-subject-leaderboard/?session_id=${sessionId}&subject=${encodeURIComponent(subjectName)}`)
+    const resp = await fetch(`/api/session-subject-leaderboard/?session_id=${sessionId}&subject=${encodeURIComponent(subjectName)}`)
     const data = await resp.json()
     if (data.ok) {
       subjectTotalQuestions.value[subjectId] = data.total_questions

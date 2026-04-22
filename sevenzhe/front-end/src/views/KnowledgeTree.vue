@@ -50,31 +50,12 @@ const showModal = ref(false)
 const selectedQuestion = ref<any>(null)
 const resultState = ref('idle') // 'idle', 'correct', 'wrong'
 const subjectCards = ref<any[]>([])
+const cardScrollIndex = ref(0) // 0=總覽卡，1~N=科目卡
 
 // 視圖模式控制
-const viewMode = ref<'allInOne' | 'detail'>('detail') // 暫時改為 detail
+const viewMode = ref<'detail'>('detail')
 const isTransitioning = ref(false)
 const isLoading = ref(true) // 載入狀態
-// const zoomScale = ref(1) // 縮放比例，用於 allInOne 模式
-// const pathsWrapperRef = ref<HTMLElement | null>(null) // PathLayout 包裝器的引用
-
-// // 計算縮放後的容器樣式
-// const containerStyle = computed(() => {
-//   if (!pathsWrapperRef.value) return {}
-  
-//   // 獲取未縮放的寬度和高度
-//   const wrapperWidth = pathsWrapperRef.value.scrollWidth
-//   const wrapperHeight = pathsWrapperRef.value.scrollHeight
-  
-//   // 計算縮放後的實際尺寸
-//   const scaledWidth = wrapperWidth * zoomScale.value
-//   const scaledHeight = wrapperHeight * zoomScale.value
-  
-//   return {
-//     width: `${scaledWidth + 80}px`, // 加上 padding (40px * 2)
-//     height: `${scaledHeight + 60}px`, // 加上 padding (20px + 40px)
-//   }
-// })
 
 // // 所有題目（跨科目）按 level 排序用於 allInOne 模式
 // const allQuestions = computed(() => {
@@ -332,12 +313,14 @@ const scrollToBottom = (index: number) => {
 
 const handleScroll = (event: Event) => {
   const container = event.target as HTMLElement
-  const index = Math.round(container.scrollLeft / container.clientWidth)
-  if (index !== currentSubjectIndex.value && index < subjects.value.length) {
-    currentSubjectIndex.value = index
-    currentSubject.value = subjects.value[index]
-    // 切換科目時滾動到底部
-    scrollToBottom(index)
+  // index 0 = 總覽卡，index 1~N = subjects[0]~subjects[N-1]
+  const rawIndex = Math.round(container.scrollLeft / container.clientWidth)
+  cardScrollIndex.value = rawIndex
+  const subjectIndex = rawIndex - 1 // 扣掉總覽卡
+  if (subjectIndex >= 0 && subjectIndex < subjects.value.length && subjectIndex !== currentSubjectIndex.value) {
+    currentSubjectIndex.value = subjectIndex
+    currentSubject.value = subjects.value[subjectIndex]
+    scrollToBottom(subjectIndex)
   }
 }
 
@@ -526,6 +509,18 @@ const disabledQuestionIds = computed(() => {
   return [...new Set([...exhaustedQuestionIds.value, ...myCorrectIds.value])]
 })
 
+// 總覽卡片資料：3 rows (level 3,2,1) × 5 cols (subjects)
+const overviewData = computed(() => {
+  return [3, 2, 1].map(level =>
+    subjects.value.map(subject => {
+      const qs = subject.questions.filter((q: any) => q.level === level)
+      const remaining = qs.filter((q: any) => !disabledQuestionIds.value.includes(q.id)).length
+      const exhausted = qs.filter((q: any) => exhaustedQuestionIds.value.includes(q.id)).length
+      return { subject, level, total: qs.length, remaining, exhausted }
+    })
+  )
+})
+
 // 從 localStorage 讀取學生名字
 const studentName = computed(() => {
   return localStorage.getItem('student_name') || '玩家'
@@ -629,33 +624,6 @@ const switchToDetail = (subjectIndex: number) => {
 //   }, 500)
 // }
 
-// // 滾輪縮放處理
-// const handleWheel = (event: WheelEvent) => {
-//   if (isTransitioning.value) return
-  
-//   // 檢測是否為縮放手勢（按住 Ctrl/Cmd 或觸控板雙指縮放）
-//   if (event.ctrlKey || event.metaKey) {
-//     event.preventDefault()
-    
-//     const delta = -event.deltaY
-    
-//     if (viewMode.value === 'allInOne') {
-//       // allInOne 模式：調整縮放比例
-//       const zoomStep = 0.1
-//       if (delta > 0) {
-//         // 放大
-//         zoomScale.value = Math.min(zoomScale.value + zoomStep, 2) // 最大 2 倍
-//       } else {
-//         // 縮小
-//         zoomScale.value = Math.max(zoomScale.value - zoomStep, 0.3) // 最小 0.3 倍
-//       }
-//     } else if (viewMode.value === 'detail' && delta < 0) {
-//       // detail 模式縮小 -> 返回 allInOne
-//       switchToAllInOne()
-//     }
-//   }
-// }
-
 // // allInOne 模式點擊題目處理
 // const handleAllInOneQuestionClick = (question: Question) => {
 //   // 找到該題目所屬的科目並切換到該科目的 detail 模式
@@ -722,10 +690,11 @@ function handleLogout() {
       </div>
     </div>
 
-    <div class="subject-info" v-if="currentSubject && viewMode === 'detail'">
-      <div class="subject-badge" :style="{ background: getSubjectGradient(currentSubject.name) }">{{ currentSubject.name }}</div>
-      <div class="subject-progress">請選擇題目挑戰</div>
-      <div class="subject-progress">已完成 {{ currentSubject.questions.filter((q: any) => disabledQuestionIds.includes(q.id)).length }}/{{ currentSubject.progress.total }} 題</div>
+    <div class="subject-info" v-if="viewMode === 'detail' && (currentSubject || cardScrollIndex === 0)">
+      <div v-if="cardScrollIndex === 0" class="subject-badge" style="background: rgba(255,255,255,0.25)">總覽</div>
+      <div v-else class="subject-badge" :style="currentSubject ? { background: getSubjectGradient(currentSubject.name) } : {}">{{ currentSubject?.name }}</div>
+      <div class="subject-progress" :style="{ visibility: cardScrollIndex === 0 ? 'hidden' : 'visible' }">請選擇題目挑戰</div>
+      <div class="subject-progress" :style="{ visibility: cardScrollIndex === 0 ? 'hidden' : 'visible' }">已完成 {{ currentSubject?.questions.filter((q: any) => disabledQuestionIds.includes(q.id)).length ?? 0 }}/{{ currentSubject?.progress.total ?? 0 }} 題</div>
     </div>
 
     <!-- 載入中提示 -->
@@ -734,10 +703,10 @@ function handleLogout() {
       <p class="loading-text">載入知識地圖中...</p>
     </div>
 
-    <!-- allInOne 模式：所有科目 PathLayout 並排 -->
+    <!-- allInOne 模式：所有科目 PathLayout 並排（暫時停用，準備重新設計） -->
     <!-- <transition name="zoom-fade">
-      <div v-if="viewMode === 'allInOne' && subjects.length > 0" class="all-in-one-container" :style="containerStyle">
-        <div ref="pathsWrapperRef" class="all-in-one-paths-wrapper" :style="{ transform: `scale(${zoomScale})` }">
+      <div v-if="viewMode === 'allInOne' && subjects.length > 0" class="all-in-one-container">
+        <div class="all-in-one-paths-wrapper">
           <div
             v-for="(subject, index) in subjects"
             :key="subject.id"
@@ -746,10 +715,12 @@ function handleLogout() {
             <PathLayout
               :subject-id="subject.id"
               :questions="subject.questions"
+              :hide-svg="true"
+              :compact="true"
               @question-click="handleAllInOnePathClick"
             >
               <template #question="{ question }">
-                <QuestionCard :question="(question as any)" />
+                <QuestionCard :question="(question as any)" :compact="true" />
               </template>
             </PathLayout>
           </div>
@@ -760,6 +731,53 @@ function handleLogout() {
     <!-- detail 模式：詳細檢視（原本的 cards-wrapper） -->
     <transition name="zoom-fade">
       <div v-if="viewMode === 'detail' && subjects.length > 0" class="cards-wrapper" @scroll="handleScroll">
+
+        <!-- 總覽卡片（第一張，無 subject-badge） -->
+        <div class="subject-card overview-card">
+          <div class="overview-grid-container">
+            <!-- SVG 虛線：同科目連線 -->
+            <svg
+              class="overview-lines-svg"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <!-- 5 條垂直虛線，x 對齊各欄中心 10/30/50/70/90；y 從第一列到第三列中心 -->
+              <line
+                v-for="(subject, i) in subjects"
+                :key="subject.id"
+                :x1="10 + i * 20"
+                y1="16.67"
+                :x2="10 + i * 20"
+                y2="83.33"
+                stroke="rgba(130,130,130,0.5)"
+                stroke-width="0.6"
+                stroke-dasharray="2.5 1.5"
+                stroke-linecap="round"
+              />
+            </svg>
+
+            <!-- 3 rows × 5 cols grid -->
+            <div class="overview-grid">
+              <template v-for="row in overviewData" :key="row[0]?.level">
+                <div
+                  v-for="cell in row"
+                  :key="`${cell.level}-${cell.subject.id}`"
+                  class="overview-mini-card"
+                  :style="{ background: getSubjectGradient(cell.subject.name) }"
+                >
+                  <div class="overview-mini-stars">
+                    <span v-for="n in 3" :key="n" class="overview-star">{{ n <= cell.level ? '★' : '☆' }}</span>
+                  </div>
+                  <div class="overview-mini-subject">{{ cell.subject.name }}</div>
+                  <div class="overview-mini-count">{{ cell.exhausted }} / {{ cell.total }}</div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- 各科目詳細卡片 -->
         <div
           v-for="(subject, index) in subjects"
           :key="subject.id"
@@ -1252,6 +1270,10 @@ function handleLogout() {
   color: white;
 }
 
+.subject-info--hidden {
+  visibility: hidden;
+}
+
 .subject-badge {
   color: white;
   padding: 8px 24px;
@@ -1360,6 +1382,79 @@ function handleLogout() {
 .subject-card::-webkit-scrollbar-thumb {
   background-color: rgba(155, 155, 155, 0.5);
   border-radius: 3px;
+}
+
+/* ─── 總覽卡片 ─── */
+.overview-card {
+  overflow: auto !important;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.overview-grid-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+}
+
+.overview-lines-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: clamp(8px, 1.5vw, 20px);
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+  align-items: center;
+  justify-items: center;
+}
+
+.overview-mini-card {
+  width: 100%;
+  height: 100%;
+  border-radius: clamp(8px, 1vw, 12px);
+  padding: clamp(6px, 1vw, 14px);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: clamp(3px, 0.5vw, 8px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+.overview-mini-stars {
+  display: flex;
+  gap: 2px;
+  font-size: clamp(10px, 1.2vw, 15px);
+}
+
+.overview-star {
+  opacity: 0.85;
+}
+
+.overview-mini-subject {
+  font-size: clamp(13px, 1.8vw, 22px);
+  font-weight: 700;
+}
+
+.overview-mini-count {
+  font-size: clamp(10px, 1.2vw, 14px);
+  opacity: 0.9;
+  letter-spacing: 0.5px;
 }
 
 /* 國家建設狀態相關樣式 */
@@ -1517,29 +1612,26 @@ function handleLogout() {
   transform: scale(1.1);
 }
 
-/* allInOne 模式：所有科目 PathLayout 並排 */
+/* allInOne 模式：所有科目 PathLayout 並排（暫時停用，準備重新設計） */
 /* .all-in-one-container {
-  padding: 20px 40px 40px;
-  overflow: auto;
+  flex: 1;
   display: flex;
-  align-items: flex-start;
-  transition: width 0.2s ease-out, height 0.2s ease-out;
+  overflow: hidden;
+  padding: 8px 4px 8px;
 }
 
 .all-in-one-paths-wrapper {
   display: flex;
+  width: 100%;
+  height: 100%;
   gap: 0;
-  padding: 20px;
-  width: fit-content;
-  height: fit-content;
-  transform-origin: top left;
-  transition: transform 0.2s ease-out;
 }
 
 .all-in-one-subject-path {
-  flex-shrink: 0;
-  min-width: 600px;
-  height: auto;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
 } */
 
 

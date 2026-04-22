@@ -256,6 +256,7 @@ const policyCardData: Record<number, { title: string; image: string }> = {
   3:  { title: '河邊建立火力發電廠',      image: '/policyCards/火域/河邊.png' },
   4:  { title: '無水源區域建立火力發電廠', image: '/policyCards/火域/無水.png' },
   5:  { title: '堰塞湖開發為觀光區',      image: '/policyCards/土域/觀光.png' },
+  6:  { title: '處理堰塞湖',              image: '/policyCards/土域/處理.png' },
   7:  { title: '不得使用汞提煉金',        image: '/policyCards/金域/不可.png' },
   10: { title: '不推行夜間觀光',          image: '/policyCards/光域/不可.png' },
   12: { title: '限制捕魚方式',            image: '/policyCards/水域/限制.png' },
@@ -306,6 +307,12 @@ const domainMapPlacement: Record<string, MapPlacement> = {
       { x: 3, y: -3, policyId: 2 },
       { x: 5, y: -4, policyId: 3 },
       { x: 5.5, y: -6, policyId: 4 },
+    ],
+  },
+  土域: {
+    image: '/地圖放置區/堰塞湖土壩放置區.png',
+    positions: [
+      { x: 13, y: -4, policyId: 6 },
     ],
   },
 };

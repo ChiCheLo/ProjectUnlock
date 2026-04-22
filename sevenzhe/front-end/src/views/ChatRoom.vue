@@ -261,6 +261,7 @@ const policyCardData: Record<number, { title: string; image: string }> = {
   8:  { title: '上游使用汞提煉金',        image: '/policyCards/金域/上游.png' },
   9:  { title: '下游使用汞提煉金',        image: '/policyCards/金域/下游.png' },
   10: { title: '不推行夜間觀光',          image: '/policyCards/光域/不可.png' },
+  11: { title: '推行夜間觀光',            image: '/policyCards/光域/可.png' },
   12: { title: '限制捕魚方式',            image: '/policyCards/水域/限制.png' },
   15: { title: '不建設核能發電廠',        image: '/policyCards/雷域/不建設.png' },
   19: { title: '不砍伐闊葉林換取經濟',   image: '/policyCards/木域/不種植.png' },
@@ -322,6 +323,12 @@ const domainMapPlacement: Record<string, MapPlacement> = {
     positions: [
       { x: 12, y: -4, policyId: 8 },
       { x: 13, y: -6, policyId: 9 },
+    ],
+  },
+  光域: {
+    image: '/地圖放置區/光害放置區.png',
+    positions: [
+      { x: 11.5, y: -9, policyId: 11 },
     ],
   },
 };

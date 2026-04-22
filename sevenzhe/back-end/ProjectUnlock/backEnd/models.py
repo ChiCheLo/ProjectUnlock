@@ -139,7 +139,7 @@ class WebLog(models.Model):
     log_id = models.AutoField(primary_key=True)
     logTime = models.DateTimeField(auto_now_add=True)
     record = models.TextField()
-    group_id = models.IntegerField()
+    student_id = models.IntegerField()
 
     class Meta:
         db_table = 'webLog_table'

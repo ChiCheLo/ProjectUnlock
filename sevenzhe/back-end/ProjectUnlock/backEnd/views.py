@@ -1547,13 +1547,7 @@ def save_web_log(request):
         return Response({'ok': False, 'error': 'student_id 和 record 為必填'}, status=400)
 
     try:
-        student = Student.objects.get(student_id=student_id)
-        group_id = student.group_id
-    except Student.DoesNotExist:
-        return Response({'ok': False, 'error': '找不到對應學生'}, status=404)
-
-    try:
-        WebLog.objects.create(record=record, group_id=group_id)
+        WebLog.objects.create(record=record, student_id=student_id)
         return Response({'ok': True})
     except Exception as err:
         return Response({'ok': False, 'error': str(err)}, status=500)

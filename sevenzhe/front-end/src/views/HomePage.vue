@@ -306,9 +306,10 @@ function toggleSection(section: string) {
     if (section === 'group') {
       loadGroupMembers()
     }
-    // 如果切換到線索，加載學生的線索
+    // 如果切換到線索，加載學生的線索並記錄 log
     if (section === 'clues') {
       loadStudentClues()
+      sendLog('開啟個人線索面板')
     }
   }
 }

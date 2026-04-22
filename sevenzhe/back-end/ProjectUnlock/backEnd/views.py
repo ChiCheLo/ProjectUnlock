@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -9,6 +10,78 @@ from rest_framework.response import Response
 
 from .models import GameDomain, GameRecord, ChatMessage, Student
 from django.db import connection
+
+# ─── 全域遊戲模式狀態（單進程 in-memory） ───────────────────────────
+_game_mode = {
+    'quiz_enabled': False,
+    'turtle_enabled': False,
+    'quiz_timer_end': None,  # Unix timestamp，None 表示未計時
+}
+
+
+@api_view(['GET'])
+def get_mode_status(request):
+    """取得目前遊戲模式狀態與倒數秒數"""
+    now = time.time()
+    # 計時器到期 → 自動關閉搶答模式
+    if _game_mode['quiz_timer_end'] and now >= _game_mode['quiz_timer_end']:
+        _game_mode['quiz_enabled'] = False
+        _game_mode['quiz_timer_end'] = None
+
+    remaining = 0
+    if _game_mode['quiz_enabled'] and _game_mode['quiz_timer_end']:
+        remaining = max(0, int(_game_mode['quiz_timer_end'] - now))
+
+    return Response({
+        'ok': True,
+        'quiz_enabled': _game_mode['quiz_enabled'],
+        'turtle_enabled': _game_mode['turtle_enabled'],
+        'quiz_timer_remaining': remaining,
+        'quiz_timer_end': _game_mode['quiz_timer_end'],
+    })
+
+
+@api_view(['POST'])
+@csrf_exempt
+def set_mode_control(request):
+    """
+    管理員（session_id=0）控制遊戲模式
+    action: 'enable_quiz' | 'disable_quiz' | 'enable_turtle' | 'disable_turtle'
+            | 'start_timer' | 'reset_timer'
+    """
+    data = request.data
+    student_id = data.get('student_id')
+
+    try:
+        student = Student.objects.get(student_id=student_id, session_id=0)
+    except Student.DoesNotExist:
+        return Response({'ok': False, 'error': '無管理員權限'}, status=403)
+
+    action = data.get('action', '')
+
+    if action == 'enable_quiz':
+        _game_mode['quiz_enabled'] = True
+    elif action == 'disable_quiz':
+        _game_mode['quiz_enabled'] = False
+        _game_mode['quiz_timer_end'] = None
+    elif action == 'enable_turtle':
+        _game_mode['turtle_enabled'] = True
+    elif action == 'disable_turtle':
+        _game_mode['turtle_enabled'] = False
+    elif action == 'start_timer':
+        _game_mode['quiz_enabled'] = True
+        _game_mode['quiz_timer_end'] = time.time() + 600  # 10 分鐘
+    elif action == 'reset_timer':
+        _game_mode['quiz_timer_end'] = None
+        _game_mode['quiz_enabled'] = False
+    else:
+        return Response({'ok': False, 'error': f'未知 action: {action}'}, status=400)
+
+    return Response({'ok': True, 'state': {
+        'quiz_enabled': _game_mode['quiz_enabled'],
+        'turtle_enabled': _game_mode['turtle_enabled'],
+        'quiz_timer_end': _game_mode['quiz_timer_end'],
+    }})
 
 # 延遲導入 OpenAI 以避免啟動時出錯
 def get_openai_client():

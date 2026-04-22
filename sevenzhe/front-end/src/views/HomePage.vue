@@ -171,6 +171,12 @@ onMounted(() => {
   
   // 載入政策卡片
   fetchGroupPolicies()
+
+  // 載入遊戲模式狀態
+  loadModeStatus()
+
+  // 每 3 秒輪詢一次模式狀態
+  modeStatusTimer = setInterval(loadModeStatus, 3000)
 })
 
 // 從 localStorage 讀取學生名字
@@ -202,6 +208,56 @@ const clues = ref<any[]>([])
 
 const router = useRouter()
 let lastScrollPosition = 0
+
+// ─── 管理員 & 遊戲模式狀態 ───────────────────────────────────────
+const isAdmin = computed(() => {
+  const sid = localStorage.getItem('session_id')
+  return sid === '0'
+})
+const quizEnabled = ref(false)
+const turtleEnabled = ref(false)
+let modeStatusTimer: ReturnType<typeof setInterval> | null = null
+
+async function loadModeStatus() {
+  try {
+    const resp = await fetch('/api/mode-status/')
+    const data = await resp.json()
+    if (data.ok) {
+      quizEnabled.value = data.quiz_enabled
+      turtleEnabled.value = data.turtle_enabled
+    }
+  } catch (err) {
+    console.warn('loadModeStatus failed', err)
+  }
+}
+
+async function toggleQuiz() {
+  const studentId = localStorage.getItem('student_id')
+  const action = quizEnabled.value ? 'disable_quiz' : 'enable_quiz'
+  const resp = await fetch('/api/mode-control/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ student_id: Number(studentId), action })
+  })
+  const data = await resp.json()
+  if (data.ok) {
+    quizEnabled.value = data.state.quiz_enabled
+  }
+}
+
+async function toggleTurtle() {
+  const studentId = localStorage.getItem('student_id')
+  const action = turtleEnabled.value ? 'disable_turtle' : 'enable_turtle'
+  const resp = await fetch('/api/mode-control/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ student_id: Number(studentId), action })
+  })
+  const data = await resp.json()
+  if (data.ok) {
+    turtleEnabled.value = data.state.turtle_enabled
+  }
+}
 
 function toggleNotification() {
   isNotificationActive.value = !isNotificationActive.value
@@ -347,6 +403,10 @@ onBeforeUnmount(() => {
     document.body.style.overflow = 'auto'
     window.removeEventListener('scroll', handleScroll)
   }
+  if (modeStatusTimer) {
+    clearInterval(modeStatusTimer)
+    modeStatusTimer = null
+  }
 })
 </script>
 
@@ -414,7 +474,11 @@ onBeforeUnmount(() => {
 
       <div class="mode-cards-container">
         <div class="mode-cards">
-          <div class="mode-card mode-card-quiz" @click="goToKnowledgeTree">
+          <!-- 搶答模式 -->
+          <div class="mode-card mode-card-quiz"
+            :class="{ 'mode-card-disabled': !quizEnabled && !isAdmin }"
+            @click="quizEnabled || isAdmin ? goToKnowledgeTree() : null"
+          >
             <div class="mode-card-inner">
               <div class="mode-icon-box">
                 <div class="mode-icon-bg">
@@ -430,6 +494,10 @@ onBeforeUnmount(() => {
                 <p class="mode-desc">競速模式搶答，獲得線索與金幣吧！</p>
               </div>
             </div>
+            <!-- 管理員開關按鈕 -->
+            <button v-if="isAdmin" class="admin-toggle-btn" :class="{ active: quizEnabled }" @click.stop="toggleQuiz">
+              {{ quizEnabled ? '關閉搶答' : '開啟搶答' }}
+            </button>
           </div>
 
           <div class="mode-card mode-card-leaderboard" @click="goToLeaderboard">
@@ -468,7 +536,11 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="mode-card mode-card-turtle" @click="goToSeaTurtleSoup">
+          <!-- 海龜湯模式 -->
+          <div class="mode-card mode-card-turtle"
+            :class="{ 'mode-card-disabled': !turtleEnabled && !isAdmin }"
+            @click="turtleEnabled || isAdmin ? goToSeaTurtleSoup() : null"
+          >
             <div class="mode-card-inner">
               <div class="mode-icon-box">
                 <div class="mode-icon-bg">
@@ -484,6 +556,10 @@ onBeforeUnmount(() => {
                 <p class="mode-desc">解開不同主題海龜湯，建立自己的國家！</p>
               </div>
             </div>
+            <!-- 管理員開關按鈕 -->
+            <button v-if="isAdmin" class="admin-toggle-btn" :class="{ active: turtleEnabled }" @click.stop="toggleTurtle">
+              {{ turtleEnabled ? '關閉海龜湯' : '開啟海龜湯' }}
+            </button>
           </div>
         </div>
       </div>
@@ -1004,6 +1080,39 @@ onBeforeUnmount(() => {
 
 .mode-card:hover {
   transform: scale(1.05);
+}
+
+.mode-card-disabled {
+  filter: grayscale(80%) brightness(0.7);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.mode-card-disabled:hover {
+  transform: none;
+}
+
+/* 管理員開關按鈕 */
+.admin-toggle-btn {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.35);
+  color: white;
+  transition: background 0.2s;
+  z-index: 10;
+  pointer-events: all;
+}
+
+.admin-toggle-btn.active {
+  background: rgba(255, 255, 255, 0.35);
+  color: #333;
 }
 
 .mode-card-quiz {

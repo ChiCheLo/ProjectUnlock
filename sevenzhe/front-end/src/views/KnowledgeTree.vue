@@ -165,6 +165,66 @@ const loadQuestions = async () => {
 // 輪詢 timer，用於即時同步其他玩家的答題狀態
 let exhaustedPollTimer: ReturnType<typeof setInterval> | null = null
 
+// ── 管理員計時器 ──────────────────────────────────────────
+const isAdminKT = computed(() => localStorage.getItem('session_id') === '0')
+const quizEnabledKT = ref(true)          // 預設 true，避免一進來就被踢
+const quizTimerRemaining = ref(0)        // 後端回傳的剩餘秒數
+let modeStatusPollTimer: ReturnType<typeof setInterval> | null = null
+
+const adminTimerDisplay = computed(() => {
+  const secs = quizTimerRemaining.value
+  if (secs <= 0) return '-- : --'
+  const m = Math.floor(secs / 60).toString().padStart(2, '0')
+  const s = (secs % 60).toString().padStart(2, '0')
+  return `${m} : ${s}`
+})
+
+async function loadKTModeStatus() {
+  try {
+    const res = await fetch('/api/mode-status/')
+    const data = await res.json()
+    quizEnabledKT.value = data.quiz_enabled
+    quizTimerRemaining.value = data.quiz_timer_remaining ?? 0
+    // 非管理員：一旦 quiz 被關閉就強制返回首頁
+    if (!isAdminKT.value && !data.quiz_enabled) {
+      router.push('/')
+    }
+  } catch (err) {
+    console.warn('loadKTModeStatus failed', err)
+  }
+}
+
+async function startQuizTimer() {
+  try {
+    const res = await fetch('/api/mode-control/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: Number(localStorage.getItem('student_id')), action: 'start_timer' })
+    })
+    const data = await res.json()
+    if (!data.ok) console.warn('startQuizTimer error:', data.error)
+    await loadKTModeStatus()   // 重新輪詢以取得最新 remaining
+  } catch (err) {
+    console.warn('startQuizTimer failed', err)
+  }
+}
+
+async function resetQuizTimer() {
+  try {
+    const res = await fetch('/api/mode-control/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: Number(localStorage.getItem('student_id')), action: 'reset_timer' })
+    })
+    const data = await res.json()
+    if (!data.ok) console.warn('resetQuizTimer error:', data.error)
+    await loadKTModeStatus()
+  } catch (err) {
+    console.warn('resetQuizTimer failed', err)
+  }
+}
+// ─────────────────────────────────────────────────────────
+
 onMounted(async () => {
   await loadQuestions()
   await loadExhaustedQuestions()
@@ -175,12 +235,20 @@ onMounted(async () => {
   exhaustedPollTimer = setInterval(async () => {
     await loadExhaustedQuestions()
   }, 5000)
+
+  // 每 1 秒輪詢模式狀態（維持倒數秒數即時更新）
+  await loadKTModeStatus()
+  modeStatusPollTimer = setInterval(loadKTModeStatus, 1000)
 })
 
 onUnmounted(() => {
   if (exhaustedPollTimer) {
     clearInterval(exhaustedPollTimer)
     exhaustedPollTimer = null
+  }
+  if (modeStatusPollTimer) {
+    clearInterval(modeStatusPollTimer)
+    modeStatusPollTimer = null
   }
 })
 
@@ -821,6 +889,19 @@ function handleLogout() {
       @close="closeModal"
       @submit="handleSubmit"
     />
+
+    <!-- 管理員計時器面板 -->
+    <div v-if="isAdminKT" class="admin-timer-panel">
+      <div class="admin-timer-title">⏱ 管理員計時器</div>
+      <div class="admin-timer-display">{{ adminTimerDisplay }}</div>
+      <div class="admin-timer-actions">
+        <button class="admin-timer-btn start" @click="startQuizTimer">開始 10 分鐘</button>
+        <button class="admin-timer-btn reset" @click="resetQuizTimer">重置 / 停止</button>
+      </div>
+      <div class="admin-timer-status">
+        測驗狀態：<span :class="quizEnabledKT ? 'status-on' : 'status-off'">{{ quizEnabledKT ? '開放中' : '已關閉' }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1633,6 +1714,81 @@ function handleLogout() {
   height: 100%;
   overflow: hidden;
 } */
+
+/* ── 管理員計時器面板 ──────────────────────────────────── */
+.admin-timer-panel {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 9999;
+  background: rgba(20, 20, 40, 0.92);
+  border: 1px solid rgba(150, 100, 255, 0.5);
+  border-radius: 16px;
+  padding: 18px 22px;
+  min-width: 220px;
+  color: white;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+}
+
+.admin-timer-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: rgba(180, 150, 255, 0.9);
+  margin-bottom: 8px;
+}
+
+.admin-timer-display {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 12px;
+  color: #e0d4ff;
+}
+
+.admin-timer-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.admin-timer-btn {
+  flex: 1;
+  padding: 7px 0;
+  border: none;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+
+.admin-timer-btn.start {
+  background: linear-gradient(135deg, #7c4dff, #b040fb);
+  color: white;
+}
+
+.admin-timer-btn.reset {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ccc;
+}
+
+.admin-timer-btn:hover {
+  filter: brightness(1.2);
+}
+
+.admin-timer-status {
+  font-size: 12px;
+  color: rgba(200, 200, 220, 0.7);
+  text-align: center;
+}
+
+.status-on  { color: #6eff9e; font-weight: 700; }
+.status-off { color: #ff6e6e; font-weight: 700; }
+/* ──────────────────────────────────────────────────────── */
 
 
 </style>

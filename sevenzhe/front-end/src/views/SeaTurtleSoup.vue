@@ -88,6 +88,21 @@ const isDomainCompleted = (domainName: string) => {
   return completedDomains.value.includes(domainName)
 }
 
+// ── 海龜湯模式狀態輪詢（被關閉時強制回首頁）──────────────────
+let turtleModeTimer: ReturnType<typeof setInterval> | null = null
+
+async function checkTurtleEnabled() {
+  if (localStorage.getItem('session_id') === '0') return  // 管理員不踢
+  try {
+    const res = await fetch('/api/mode-status/')
+    const data = await res.json()
+    if (data.ok && !data.turtle_enabled) {
+      router.push('/')
+    }
+  } catch { /* 忽略網路錯誤 */ }
+}
+// ─────────────────────────────────────────────────────────────
+
 // 檢查是否從 ChatRoom 答對後返回
 onMounted(() => {
   // 從 ChatRoom 決策完畢導回時，reload 一次以更新最新狀態
@@ -108,6 +123,10 @@ onMounted(() => {
   loadPolicyCount()
   loadCluesCount()
   loadCompletedDomains()
+
+  // 每 3 秒輪詢海龜湯模式狀態
+  checkTurtleEnabled()
+  turtleModeTimer = setInterval(checkTurtleEnabled, 3000)
 })
 
 const domains = ref<Domain[]>([
@@ -316,6 +335,13 @@ function selectDomain(domain: Domain) {
 function handleBack() {
   router.push('/')
 }
+
+onBeforeUnmount(() => {
+  if (turtleModeTimer) {
+    clearInterval(turtleModeTimer)
+    turtleModeTimer = null
+  }
+})
 function toggleSidebar() {
   showSidebar.value = !showSidebar.value
 }

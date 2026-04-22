@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Header from "../components/Header.vue";
 import Sidebar from "../components/Sidebar.vue";
@@ -411,9 +411,35 @@ function tryShowMapOverlay(isYes: boolean, policyId: number | null) {
   }
 }
 
+// ── 海龜湯模式狀態輪詢（被關閉時強制回首頁）──────────────────
+let turtleModeTimerCR: ReturnType<typeof setInterval> | null = null
+
+async function checkTurtleEnabledCR() {
+  if (localStorage.getItem('session_id') === '0') return  // 管理員不踢
+  try {
+    const res = await fetch('/api/mode-status/')
+    const data = await res.json()
+    if (data.ok && !data.turtle_enabled) {
+      router.push('/')
+    }
+  } catch { /* 忽略網路錯誤 */ }
+}
+// ─────────────────────────────────────────────────────────────
+
 onMounted(() => {
   loadDomainStory();
   loadAndShowEntryClues();
+
+  // 每 3 秒輪詢海龜湯模式狀態
+  checkTurtleEnabledCR();
+  turtleModeTimerCR = setInterval(checkTurtleEnabledCR, 3000);
+});
+
+onBeforeUnmount(() => {
+  if (turtleModeTimerCR) {
+    clearInterval(turtleModeTimerCR);
+    turtleModeTimerCR = null;
+  }
 });
 
 // 進入域線索 overlay

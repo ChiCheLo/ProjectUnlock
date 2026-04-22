@@ -183,7 +183,7 @@ const storyText = ref("載入中…");
 // 從後端取得湯面
 const loadDomainStory = async () => {
   try {
-    const res = await fetch(`http://127.0.0.1:8000/api/domain-story/?domain=${encodeURIComponent(domainName)}`);
+    const res = await fetch(`/api/domain-story/?domain=${encodeURIComponent(domainName)}`);
     const data = await res.json();
     if (data.ok) {
       storyText.value = data.soup_content;
@@ -464,7 +464,7 @@ async function saveGroupPolicy(policyId: number) {
     return;
   }
   try {
-    await fetch('http://127.0.0.1:8000/api/save-group-policy/', {
+    await fetch('/api/save-group-policy/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ group_id: Number(groupId), policy_id: policyId }),

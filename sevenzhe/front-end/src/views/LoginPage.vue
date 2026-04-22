@@ -76,7 +76,7 @@ const handleKeyPress = (event: KeyboardEvent) => {
   <div class="login-container">
     <!-- 背景圖片 -->
     <div class="background-section">
-      <img src="/安洛克地圖 20260327.png" alt="Project Unlock Map" class="background-image" />
+      <img src="/安洛克地圖.png" alt="Project Unlock Map" class="background-image" />
       <div class="title-overlay">
         <h1 class="title-text">破解安洛克</h1>
         <p class="subtitle-text">Project Unlock</p>

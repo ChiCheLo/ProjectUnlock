@@ -19,4 +19,15 @@ const router = createRouter({
   history: createWebHistory(),
   routes,
 });
+
+// 未登入者導向登入頁
+router.beforeEach((to, _from, next) => {
+  const isLoggedIn = !!localStorage.getItem('student_id');
+  if (to.name !== 'login' && !isLoggedIn) {
+    next({ name: 'login' });
+  } else {
+    next();
+  }
+});
+
 export default router

@@ -266,6 +266,8 @@ const policyCardData: Record<number, { title: string; image: string }> = {
   13: { title: '不限制捕魚方式，非爭議海域', image: '/policyCards/水域/一般海域.png' },
   14: { title: '不限制捕魚方式，爭議海域',  image: '/policyCards/水域/爭議海域.png' },
   15: { title: '不建設核能發電廠',        image: '/policyCards/雷域/不建設.png' },
+  16: { title: '於海邊建立核能發電廠',    image: '/policyCards/雷域/海邊.png' },
+  17: { title: '不靠海之內陸建立核能發電廠', image: '/policyCards/雷域/內陸.png' },
   19: { title: '不砍伐闊葉林換取經濟',   image: '/policyCards/木域/不種植.png' },
   20: { title: '不建設風力發電機',        image: '/policyCards/風域/不建設.png' },
   24: { title: '不大力推行觀光',          image: '/policyCards/空域/不推行.png' },
@@ -340,6 +342,13 @@ const domainMapPlacement: Record<string, MapPlacement> = {
       { x: 9,  y: -13, policyId: 14 },
     ],
   },
+  雷域: {
+    image: '/地圖放置區/核能放置區.png',
+    positions: [
+      { x: 1,   y: -11, policyId: 16 },
+      { x: 5.5, y: -8,  policyId: 17 },
+    ],
+  },
 };
 
 // 各域地圖觸發條件：'yes' = 選是才顯示，'no' = 選否才顯示
@@ -349,6 +358,7 @@ const domainMapTrigger: Record<string, 'yes' | 'no'> = {
   金域: 'yes',
   光域: 'yes',
   水域: 'no',
+  雷域: 'yes',
 };
 
 async function selectMapPosition(policyId: number) {

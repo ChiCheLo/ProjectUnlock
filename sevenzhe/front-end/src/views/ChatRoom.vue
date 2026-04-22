@@ -275,6 +275,7 @@ const policyCardData: Record<number, { title: string; image: string }> = {
   22: { title: '出海口建立風力發電機',    image: '/policyCards/風域/出海口.png' },
   23: { title: '河邊建立風力發電機',      image: '/policyCards/風域/河邊.png' },
   24: { title: '不大力推行觀光',          image: '/policyCards/空域/不推行.png' },
+  25: { title: '大力推行觀光',            image: '/policyCards/空域/推行.png' },
 };
 
 function closePolicyCardAndNavigate() {
@@ -367,6 +368,12 @@ const domainMapPlacement: Record<string, MapPlacement> = {
       { x: 8,   y: -4.5, policyId: 23 },
     ],
   },
+  空域: {
+    image: '/地圖放置區/觀光公害放置區.png',
+    positions: [
+      { x: 11, y: -6, policyId: 25 },
+    ],
+  },
 };
 
 // 各域地圖觸發條件：'yes' = 選是才顯示，'no' = 選否才顯示
@@ -379,6 +386,7 @@ const domainMapTrigger: Record<string, 'yes' | 'no'> = {
   雷域: 'yes',
   木域: 'yes',
   風域: 'yes',
+  空域: 'yes',
 };
 
 async function selectMapPosition(policyId: number) {

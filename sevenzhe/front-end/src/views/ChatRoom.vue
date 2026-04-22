@@ -263,6 +263,8 @@ const policyCardData: Record<number, { title: string; image: string }> = {
   10: { title: '不推行夜間觀光',          image: '/policyCards/光域/不可.png' },
   11: { title: '推行夜間觀光',            image: '/policyCards/光域/可.png' },
   12: { title: '限制捕魚方式',            image: '/policyCards/水域/限制.png' },
+  13: { title: '不限制捕魚方式，非爭議海域', image: '/policyCards/水域/一般海域.png' },
+  14: { title: '不限制捕魚方式，爭議海域',  image: '/policyCards/水域/爭議海域.png' },
   15: { title: '不建設核能發電廠',        image: '/policyCards/雷域/不建設.png' },
   19: { title: '不砍伐闊葉林換取經濟',   image: '/policyCards/木域/不種植.png' },
   20: { title: '不建設風力發電機',        image: '/policyCards/風域/不建設.png' },
@@ -331,6 +333,22 @@ const domainMapPlacement: Record<string, MapPlacement> = {
       { x: 11.5, y: -9, policyId: 11 },
     ],
   },
+  水域: {
+    image: '/地圖放置區/漁網放置區.png',
+    positions: [
+      { x: 8,  y: -11, policyId: 13 },
+      { x: 9,  y: -13, policyId: 14 },
+    ],
+  },
+};
+
+// 各域地圖觸發條件：'yes' = 選是才顯示，'no' = 選否才顯示
+const domainMapTrigger: Record<string, 'yes' | 'no'> = {
+  火域: 'yes',
+  土域: 'yes',
+  金域: 'yes',
+  光域: 'yes',
+  水域: 'no',
 };
 
 async function selectMapPosition(policyId: number) {
@@ -342,7 +360,12 @@ async function selectMapPosition(policyId: number) {
 
 function tryShowMapOverlay(isYes: boolean, policyId: number | null) {
   const placement = domainMapPlacement[domainName];
-  if (isYes && placement) {
+  const trigger = domainMapTrigger[domainName];
+  const shouldShow = placement && (
+    (trigger === 'yes' && isYes) ||
+    (trigger === 'no'  && !isYes)
+  );
+  if (shouldShow) {
     showMapOverlay.value = true;
     // 不自動關閉，玩家必須點擊位置選擇
   } else {
@@ -545,7 +568,7 @@ function goBack() {
     <div v-if="showPolicyCard" class="policy-card-overlay" @click.self="closePolicyCardAndNavigate">
       <div class="policy-card-box">
         <button class="policy-card-close" @click="closePolicyCardAndNavigate">✕</button>
-        <p class="policy-card-label">你們組別獲得政策卡</p>
+        <p class="policy-card-label">獲得政策卡</p>
         <h2 class="policy-card-title">{{ displayPolicyTitle }}</h2>
         <img class="policy-card-img" :src="displayPolicyImage" :alt="displayPolicyTitle" />
         <p class="policy-card-hint">5 秒後自動關閉，或點擊旁邊關閉</p>

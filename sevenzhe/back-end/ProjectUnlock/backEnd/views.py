@@ -1338,17 +1338,68 @@ def save_group_policy(request):
 
 @api_view(['POST'])
 @csrf_exempt
+def save_chat(request):
+    """
+    儲存單筆對話紀錄到 chat_table
+    
+    Request body:
+    {
+        "type": 0,           // 0 = AI, 1 = 玩家
+        "chat": "對話內容",
+        "student_id": 1,
+        "domain": "火域"    // 用來查詢 soup_id
+    }
+    """
+    try:
+        data = request.data
+        msg_type = data.get('type')
+        chat = data.get('chat', '').strip()
+        student_id = data.get('student_id')
+        domain = data.get('domain', '').strip()
+
+        if msg_type is None or not chat or not student_id or not domain:
+            return Response({'ok': False, 'error': '缺少必要欄位'}, status=400)
+
+        with connection.cursor() as cursor:
+            # 查詢 soup_id
+            cursor.execute(
+                "SELECT soup_id FROM soup_table WHERE soup_title = %s LIMIT 1",
+                [domain]
+            )
+            row = cursor.fetchone()
+            if not row:
+                return Response({'ok': False, 'error': f'找不到域「{domain}」的 soup_id'}, status=404)
+            soup_id = row[0]
+
+            # 寫入 chat_table
+            cursor.execute(
+                """
+                INSERT INTO chat_table (type, chat, student_id, soup_id, chatTime)
+                VALUES (%s, %s, %s, %s, NOW())
+                """,
+                [int(msg_type), chat, int(student_id), soup_id]
+            )
+
+        return Response({'ok': True})
+
+    except Exception as err:
+        import traceback
+        return Response({'ok': False, 'error': str(err) + '\n' + traceback.format_exc()}, status=500)
+
+
+@api_view(['POST'])
+@csrf_exempt
 def grant_domain_entry_clues(request):
     """
     進入域時，將該域 (soup_title = domain) 對應的 question_id IS NULL 的線索
     寫入 studentClue_table，並回傳線索圖片 URL 清單。
-    
+
     Request body:
     {
         "student_id": 1,
         "domain": "火域"
     }
-    
+
     Response:
     {
         "ok": True,

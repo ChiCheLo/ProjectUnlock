@@ -474,6 +474,25 @@ async function saveGroupPolicy(policyId: number) {
   }
 }
 
+async function saveChat(type: 0 | 1, chat: string) {
+  const studentId = localStorage.getItem('student_id');
+  if (!studentId) return;
+  try {
+    await fetch('/api/save-chat/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type,
+        chat,
+        student_id: Number(studentId),
+        domain: domainName,
+      }),
+    });
+  } catch (err) {
+    console.error('save_chat failed:', err);
+  }
+}
+
 async function sendMessage() {
   const text = userInput.value.trim();
   if (!text) return;
@@ -498,9 +517,15 @@ async function sendMessage() {
 
     if (policyId !== null && policyId !== undefined) {
       await saveGroupPolicy(policyId);
-      messages.value.push({ sender: 'ai', text: `好的，已記錄您的決策！政策卡已發送給您的組別。`, isReveal: true });
+      const aiDecisionText = `好的，已記錄您的決策！政策卡已發送給您的組別。`;
+      messages.value.push({ sender: 'ai', text: aiDecisionText, isReveal: true });
+      saveChat(1, text);
+      saveChat(0, aiDecisionText);
     } else {
-      messages.value.push({ sender: 'ai', text: `好的，已記錄您的決策！`, isReveal: true });
+      const aiDecisionText = `好的，已記錄您的決策！`;
+      messages.value.push({ sender: 'ai', text: aiDecisionText, isReveal: true });
+      saveChat(1, text);
+      saveChat(0, aiDecisionText);
     }
 
     // 展示地圖（若有）→ 再展示政策卡後導回
@@ -511,6 +536,7 @@ async function sendMessage() {
   // 加入玩家訊息
   messages.value.push({ sender: "player", text });
   userInput.value = "";
+  saveChat(1, text);
 
   // 顯示暫時 loading 回覆（可視化）
   messages.value.push({ sender: "ai", text: "思考中…" });
@@ -522,33 +548,39 @@ async function sendMessage() {
     const data = response.data;
 
     // 取代剛剛的 loading 訊息為真實回應
+    const aiReplyText = data.ok ? (data.text || "（無回應）") : "伺服器回應錯誤";
     const lastIndex = messages.value.length - 1;
     if (messages.value[lastIndex].sender === "ai" && messages.value[lastIndex].text === "思考中…") {
-      messages.value[lastIndex].text = data.ok ? (data.text || "（無回應）") : "伺服器回應錯誤";
+      messages.value[lastIndex].text = aiReplyText;
       if (data.reveal_truth) {
         messages.value[lastIndex].isReveal = true;
       }
     } else {
       messages.value.push({
         sender: "ai",
-        text: data.ok ? (data.text || "（無回應）") : "伺服器回應錯誤",
+        text: aiReplyText,
         isReveal: data.reveal_truth
       });
     }
+    saveChat(0, aiReplyText);
 
     // 如果答對，顯示湯底並標記已揭曉
     if (data.ok && data.reveal_truth && data.truth) {
       hasRevealed.value = true;
+      const truthText = `【湯底揭曉】\n${data.truth}`;
       messages.value.push({
         sender: "ai",
-        text: `【湯底揭曉】\n${data.truth}`,
+        text: truthText,
         isReveal: true
       });
+      saveChat(0, truthText);
       // AI 在聊天室發出對應域的決策問題
       const question = domainDecisionQuestion[domainName];
       if (question) {
         setTimeout(() => {
-          messages.value.push({ sender: 'ai', text: `【國家決策】${question}\n請輸入「是」或「否」。` });
+          const decisionText = `【國家決策】${question}\n請輸入「是」或「否」。`;
+          messages.value.push({ sender: 'ai', text: decisionText });
+          saveChat(0, decisionText);
           waitingForDecision.value = true;
         }, 600);
       }

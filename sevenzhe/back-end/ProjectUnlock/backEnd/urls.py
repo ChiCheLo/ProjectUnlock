@@ -37,6 +37,7 @@ urlpatterns = [
     path('session-subject-leaderboard/', views.get_session_subject_leaderboard, name='get_session_subject_leaderboard'),
     path('save-group-policy/', views.save_group_policy, name='save_group_policy'),
     path('grant-domain-entry-clues/', views.grant_domain_entry_clues, name='grant_domain_entry_clues'),
+    path('save-chat/', views.save_chat, name='save_chat'),
     
     # 調試 API
     path('debug/clues-table/', views.debug_clues_table, name='debug_clues_table'),

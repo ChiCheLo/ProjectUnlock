@@ -269,6 +269,7 @@ const policyCardData: Record<number, { title: string; image: string }> = {
   16: { title: '於海邊建立核能發電廠',    image: '/policyCards/雷域/海邊.png' },
   17: { title: '不靠海之內陸建立核能發電廠', image: '/policyCards/雷域/內陸.png' },
   19: { title: '不砍伐闊葉林換取經濟',   image: '/policyCards/木域/不種植.png' },
+  18: { title: '砍伐闊葉林改為種植經濟作物', image: '/policyCards/木域/種植.png' },
   20: { title: '不建設風力發電機',        image: '/policyCards/風域/不建設.png' },
   24: { title: '不大力推行觀光',          image: '/policyCards/空域/不推行.png' },
 };
@@ -349,6 +350,12 @@ const domainMapPlacement: Record<string, MapPlacement> = {
       { x: 5.5, y: -8,  policyId: 17 },
     ],
   },
+  木域: {
+    image: '/地圖放置區/木材放置區.png',
+    positions: [
+      { x: 4, y: -7, policyId: 18 },
+    ],
+  },
 };
 
 // 各域地圖觸發條件：'yes' = 選是才顯示，'no' = 選否才顯示
@@ -359,6 +366,7 @@ const domainMapTrigger: Record<string, 'yes' | 'no'> = {
   光域: 'yes',
   水域: 'no',
   雷域: 'yes',
+  木域: 'yes',
 };
 
 async function selectMapPosition(policyId: number) {

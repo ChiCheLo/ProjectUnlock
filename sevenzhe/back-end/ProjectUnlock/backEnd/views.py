@@ -69,8 +69,10 @@ def set_mode_control(request):
     elif action == 'disable_turtle':
         _game_mode['turtle_enabled'] = False
     elif action == 'start_timer':
+        minutes = float(data.get('minutes', 10))
+        minutes = max(1, min(minutes, 120))  # 限制 1~120 分鐘
         _game_mode['quiz_enabled'] = True
-        _game_mode['quiz_timer_end'] = time.time() + 600  # 10 分鐘
+        _game_mode['quiz_timer_end'] = time.time() + minutes * 60
     elif action == 'reset_timer':
         _game_mode['quiz_timer_end'] = None
         _game_mode['quiz_enabled'] = False

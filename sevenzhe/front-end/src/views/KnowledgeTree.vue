@@ -169,6 +169,7 @@ let exhaustedPollTimer: ReturnType<typeof setInterval> | null = null
 const isAdminKT = computed(() => localStorage.getItem('session_id') === '0')
 const quizEnabledKT = ref(true)          // 預設 true，避免一進來就被踢
 const quizTimerRemaining = ref(0)        // 後端回傳的剩餘秒數
+const timerMinutes = ref(10)             // 管理員自訂分鐘數
 let modeStatusPollTimer: ReturnType<typeof setInterval> | null = null
 
 const adminTimerDisplay = computed(() => {
@@ -199,7 +200,7 @@ async function startQuizTimer() {
     const res = await fetch('/api/mode-control/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ student_id: Number(localStorage.getItem('student_id')), action: 'start_timer' })
+      body: JSON.stringify({ student_id: Number(localStorage.getItem('student_id')), action: 'start_timer', minutes: timerMinutes.value })
     })
     const data = await res.json()
     if (!data.ok) console.warn('startQuizTimer error:', data.error)
@@ -894,9 +895,19 @@ function handleLogout() {
     <div v-if="isAdminKT" class="admin-timer-panel">
       <div class="admin-timer-title">⏱ 管理員計時器</div>
       <div class="admin-timer-display">{{ adminTimerDisplay }}</div>
+      <div class="admin-timer-input-row">
+        <label class="admin-timer-label">時間（分鐘）</label>
+        <input
+          v-model.number="timerMinutes"
+          type="number"
+          min="1"
+          max="120"
+          class="admin-timer-input"
+        />
+      </div>
       <div class="admin-timer-actions">
-        <button class="admin-timer-btn start" @click="startQuizTimer">開始 10 分鐘</button>
-        <button class="admin-timer-btn reset" @click="resetQuizTimer">重置 / 停止</button>
+        <button class="admin-timer-btn start" @click="startQuizTimer">▶ 開始</button>
+        <button class="admin-timer-btn reset" @click="resetQuizTimer">■ 停止</button>
       </div>
       <div class="admin-timer-status">
         測驗狀態：<span :class="quizEnabledKT ? 'status-on' : 'status-off'">{{ quizEnabledKT ? '開放中' : '已關閉' }}</span>
@@ -1753,6 +1764,38 @@ function handleLogout() {
   display: flex;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+.admin-timer-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.admin-timer-label {
+  font-size: 12px;
+  color: rgba(200, 200, 220, 0.8);
+  white-space: nowrap;
+}
+
+.admin-timer-input {
+  width: 64px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(150, 100, 255, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+
+.admin-timer-input:focus {
+  border-color: rgba(180, 130, 255, 0.8);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .admin-timer-btn {

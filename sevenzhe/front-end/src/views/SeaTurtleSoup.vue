@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Header from '../components/Header.vue'
 import Sidebar from '../components/Sidebar.vue'
+import { sendLog } from '../api/webLog'
 
 type Domain = { name: string; color: string; image?: string }
 
@@ -290,6 +291,7 @@ function closeEntryClueOverlay() {
 }
 
 function navigateToDomain(domain: Domain) {
+  sendLog(`進入海龜湯域：${domain.name}`)
   const routeName = 'seaturtlesoup-domain'
   try {
     router.push({ name: routeName, params: { domain: domain.name } })

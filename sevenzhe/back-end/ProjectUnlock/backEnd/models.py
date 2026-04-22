@@ -132,3 +132,15 @@ class AnswerRecord(models.Model):
     class Meta:
         db_table = 'answerRecord_table'
         managed = False
+
+
+class WebLog(models.Model):
+    """網頁操作 Log 紀錄"""
+    log_id = models.AutoField(primary_key=True)
+    logTime = models.DateTimeField(auto_now_add=True)
+    record = models.TextField()
+    group_id = models.IntegerField()
+
+    class Meta:
+        db_table = 'webLog_table'
+        managed = False

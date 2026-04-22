@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import Header from '../components/Header.vue'
 import Sidebar from '../components/Sidebar.vue'
+import { sendLog } from '../api/webLog'
 
 interface StatIndicator {
   label: string
@@ -242,6 +243,7 @@ async function toggleQuiz() {
   const data = await resp.json()
   if (data.ok) {
     quizEnabled.value = data.state.quiz_enabled
+    sendLog(`管理員${data.state.quiz_enabled ? '開啟' : '關閉'}搶答模式`)
   }
 }
 
@@ -256,6 +258,7 @@ async function toggleTurtle() {
   const data = await resp.json()
   if (data.ok) {
     turtleEnabled.value = data.state.turtle_enabled
+    sendLog(`管理員${data.state.turtle_enabled ? '開啟' : '關閉'}海龜湯模式`)
   }
 }
 
@@ -376,10 +379,12 @@ async function loadStudentClues() {
 }
 
 function goToKnowledgeTree() {
+  sendLog('進入搶答模式（知識樹）')
   router.push({ name: 'knowledgetree' })
 }
 
 function goToLeaderboard() {
+  sendLog('進入排行榜')
   router.push({ name: 'leaderboard' })
 }
 
@@ -395,6 +400,7 @@ function handleLogout() {
 }
 
 function goToSeaTurtleSoup() {
+  sendLog('進入海龜湯模式')
   router.push({ name: 'seaturtlesoup' })
 }
 

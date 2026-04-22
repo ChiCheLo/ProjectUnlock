@@ -6,6 +6,7 @@ import Sidebar from '../components/Sidebar.vue'
 import PathLayout from '../components/quiz/PathLayout.vue'
 import QuestionCard from '../components/quiz/QuestionCard.vue'
 import QuestionModal from '../components/quiz/QuestionModal.vue'
+import { sendLog } from '../api/webLog'
 
 // 暫時保留 quizData.js 的 subjects 結構作為科目列表
 import { subjects as defaultSubjects } from '../data/quizData.js'
@@ -496,6 +497,7 @@ const handleSubmit = async (userAnswer: string) => {
     await saveAnswerRecord(Number(studentId), selectedQuestion.value.id, wasteTime, data.correct, userAnswer)
     // 答對後重新檢查是否有題目被耗盡
     if (data.correct) {
+      sendLog(`搶答答對：科目【${selectedQuestion.value.subject}】第 ${selectedQuestion.value.id} 題`)
       await loadExhaustedQuestions()
       await loadMyCorrectQuestions()
     }

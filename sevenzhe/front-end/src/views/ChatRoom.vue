@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import Header from "../components/Header.vue";
 import Sidebar from "../components/Sidebar.vue";
 import { callOpenAIChat } from "../api/index.js";
+import { sendLog } from "../api/webLog";
 
 type BuildingCard = {
   id: number
@@ -495,6 +496,8 @@ async function saveGroupPolicy(policyId: number) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ group_id: Number(groupId), policy_id: policyId }),
     });
+    const policyTitle = policyCardData[policyId]?.title ?? `policy_id=${policyId}`;
+    sendLog(`海龜湯【${domainName}】選擇政策：${policyTitle}`);
   } catch (err) {
     console.error('save_group_policy failed:', err);
   }
@@ -593,6 +596,7 @@ async function sendMessage() {
     // 如果答對，顯示湯底並標記已揭曉
     if (data.ok && data.reveal_truth && data.truth) {
       hasRevealed.value = true;
+      sendLog(`海龜湯【${domainName}】答對，湯底揭曉`);
       const truthText = `【湯底揭曉】\n${data.truth}`;
       messages.value.push({
         sender: "ai",

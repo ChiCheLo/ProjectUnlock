@@ -8,7 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import GameDomain, GameRecord, ChatMessage, Student
+from .models import GameDomain, GameRecord, ChatMessage, Student, WebLog
 from django.db import connection
 
 # ─── 全域遊戲模式狀態（單進程 in-memory） ───────────────────────────
@@ -1530,3 +1530,30 @@ def grant_domain_entry_clues(request):
     except Exception as err:
         import traceback
         return Response({'ok': False, 'error': str(err) + '\n' + traceback.format_exc()}, status=500)
+
+
+@api_view(['POST'])
+@csrf_exempt
+def save_web_log(request):
+    """
+    記錄網頁操作 Log
+    Body: { "student_id": 1, "record": "操作描述" }
+    """
+    data = request.data
+    student_id = data.get('student_id')
+    record = data.get('record', '')
+
+    if not student_id or not record:
+        return Response({'ok': False, 'error': 'student_id 和 record 為必填'}, status=400)
+
+    try:
+        student = Student.objects.get(student_id=student_id)
+        group_id = student.group_id
+    except Student.DoesNotExist:
+        return Response({'ok': False, 'error': '找不到對應學生'}, status=404)
+
+    try:
+        WebLog.objects.create(record=record, group_id=group_id)
+        return Response({'ok': True})
+    except Exception as err:
+        return Response({'ok': False, 'error': str(err)}, status=500)

@@ -42,7 +42,10 @@ urlpatterns = [
     # 遊戲模式控制 API（管理員專用）
     path('mode-status/', views.get_mode_status, name='get_mode_status'),
     path('mode-control/', views.set_mode_control, name='set_mode_control'),
-    
+
+    # 網頁操作 Log
+    path('web-log/', views.save_web_log, name='save_web_log'),
+
     # 調試 API
     path('debug/clues-table/', views.debug_clues_table, name='debug_clues_table'),
 ]

@@ -287,9 +287,9 @@ function showPolicyCardOverlay(policyId: number | null) {
 /* ---------------------------------------------
    地圖放置 Overlay（火域選「是」）
 --------------------------------------------- */
-// 10x10 虛擬座標 → CSS 百分比（原點左上角，y 向下為正取絕對值）
+// 14x14 虛擬座標 → CSS 百分比（原點左上角，y 向下為正取絕對值）
 function mapCoordToPercent(x: number, y: number) {
-  return { left: `${(x / 10) * 100}%`, top: `${(Math.abs(y) / 10) * 100}%` };
+  return { left: `${(x / 14) * 100}%`, top: `${(Math.abs(y) / 14) * 100}%` };
 }
 
 const showMapOverlay = ref(false);
@@ -303,9 +303,9 @@ const domainMapPlacement: Record<string, MapPlacement> = {
   火域: {
     image: '/地圖放置區/海邊火力發電廠放置區.png',
     positions: [
-      { x: 2, y: -2, policyId: 2 },
-      { x: 4, y: -3, policyId: 3 },
-      { x: 5, y: -4, policyId: 4 },
+      { x: 3, y: -3, policyId: 2 },
+      { x: 5, y: -4, policyId: 3 },
+      { x: 5.5, y: -6, policyId: 4 },
     ],
   },
 };
@@ -810,7 +810,7 @@ function goBack() {
   border: none;
   padding: 0;
   cursor: pointer;
-  width: 12%;
+  width: 9.6%;
   transition: transform 0.2s;
 }
 

@@ -490,7 +490,7 @@ onBeforeUnmount(() => {
               <div class="mode-icon-box">
                 <div class="mode-icon-bg">
                   <img
-                    src="https://api.builder.io/api/v1/image/assets/TEMP/f2d996d90dba5a808fecb0535cf90a693c13fd96?width=390"
+                    src="/public/模式選擇/知識樹.png"
                     alt="搶答模式"
                     class="quiz-img"
                   />
@@ -552,7 +552,7 @@ onBeforeUnmount(() => {
               <div class="mode-icon-box">
                 <div class="mode-icon-bg">
                   <img
-                    src="https://cdn.builder.io/api/v1/image/assets%2F07579a4373634a9cae301a29b729ecef%2F7cf59e86c9114cf69282ae8353e29bcb?format=webp&width=800"
+                    src="/public/模式選擇/海龜湯.png"
                     alt=""
                     class="turtle-img"
                   />

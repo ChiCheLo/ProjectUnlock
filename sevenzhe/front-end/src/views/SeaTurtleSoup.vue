@@ -443,7 +443,7 @@ function handleDecision(choice: '建立' | '不建立') {
             </div>
           </div>
 
-          <div class="info-card" @click="showCluesModal = true">
+          <div class="info-card">
             <div class="info-card-title-row">
               <div class="info-card-icon">🔎</div>
               <div class="info-card-title">已知線索</div>

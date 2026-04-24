@@ -453,6 +453,63 @@ function closeEntryClueOverlay() {
   showEntryClueOverlay.value = false;
 }
 
+// 組別線索：按鈕 → 取得同組所有學生的線索（去重、正規化） → 顯示 modal
+const groupClues = ref<{ clue_id?: number; clue_url: string }[]>([]);
+const isLoadingGroupClues = ref(false);
+const showGroupCluesModal = ref(false);
+const zoomImage = ref<string | null>(null);
+
+function openZoom(url: string) {
+  zoomImage.value = url;
+}
+
+async function fetchGroupClues() {
+  const groupId = localStorage.getItem('group_id') || localStorage.getItem('student_id');
+  if (!groupId) return;
+  isLoadingGroupClues.value = true;
+  try {
+    const membersRes = await fetch(`/api/group-members/?group_id=${encodeURIComponent(groupId)}`);
+    const membersData = await membersRes.json();
+    if (!membersData.ok) {
+      groupClues.value = [];
+      showGroupCluesModal.value = true;
+      isLoadingGroupClues.value = false;
+      return;
+    }
+
+    const members: { student_id: number }[] = membersData.data || [];
+    // 針對每個成員平行抓取其線索
+    const fetches = members.map(m => fetch(`/api/student-clues/?student_id=${m.student_id}`)
+      .then(r => r.json())
+      .catch(() => ({ ok: false, data: [] })));
+
+    const results = await Promise.all(fetches);
+    const seen = new Set<string>();
+    const collected: { clue_id?: number; clue_url: string }[] = [];
+
+    for (const res of results) {
+      if (!res.ok || !res.data) continue;
+      for (const item of res.data) {
+        const rawUrl = item.clue_url || item.clue || '';
+        const url = normalizeClueUrl(rawUrl || '');
+        if (!url) continue;
+        if (seen.has(url)) continue;
+        seen.add(url);
+        collected.push({ clue_id: item.clue_id, clue_url: url });
+      }
+    }
+
+    groupClues.value = collected;
+    showGroupCluesModal.value = true;
+  } catch (err) {
+    console.error('fetchGroupClues failed:', err);
+    groupClues.value = [];
+    showGroupCluesModal.value = true;
+  } finally {
+    isLoadingGroupClues.value = false;
+  }
+}
+
 function normalizeClueUrl(url: string): string {
   if (url.includes('public/clues/')) return url.replace('public/clues/', '/clues/');
   if (url.startsWith('public/')) return url.replace('public/', '/');
@@ -732,6 +789,32 @@ function goBack() {
           />
         </div>
         <p class="entry-clue-hint">5 秒後自動關閉，或點擊旁邊關閉</p>
+      </div>
+    </div>
+
+    <!-- 組別線索固定按鈕 -->
+    <button class="group-clues-btn" @click="fetchGroupClues">組別線索</button>
+
+    <!-- 組別線索 Overlay（背景點擊可關閉） -->
+    <div v-if="showGroupCluesModal" class="clues-modal-overlay" @click.self="showGroupCluesModal = false">
+      <div class="clues-modal-inner">
+        <p class="clues-modal-title">組別線索</p>
+        <div v-if="isLoadingGroupClues" class="clues-loading">載入中…</div>
+        <div v-else>
+          <div v-if="groupClues.length === 0" class="no-clues">尚無線索</div>
+          <div v-else class="image-clues">
+            <div v-for="(c, i) in groupClues" :key="i" class="clue-image" @click.stop="openZoom(c.clue_url)">
+              <img :src="c.clue_url" :alt="`線索${c.clue_id ?? i}`" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 縮放 Overlay -->
+    <div v-if="zoomImage" class="zoom-overlay" @click.self="zoomImage = null">
+      <div class="zoom-box">
+        <img class="zoom-img" :src="zoomImage" alt="zoom" />
       </div>
     </div>
 
@@ -1175,4 +1258,74 @@ function goBack() {
   color: #777;
   margin: 12px 0 0;
 }
+
+/* 組別線索按鈕 */
+.group-clues-btn {
+  position: fixed;
+  bottom: 82px; /* above chat input */
+  right: 18px;
+  background: linear-gradient(135deg, #6dd3ff, #4b8bff);
+  color: white;
+  border: none;
+  padding: 12px 16px;
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(75,139,255,0.24);
+  cursor: pointer;
+  z-index: 1600;
+}
+
+/* 組別線索 modal */
+.clues-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1700;
+}
+.clues-modal-inner {
+  background: #121224;
+  border-radius: 16px;
+  padding: 18px;
+  width: 92%;
+  max-width: 900px;
+  max-height: 80vh;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.6);
+  overflow-y: auto;
+}
+.clues-modal-title {
+  color: #fff;
+  font-weight: 700;
+  margin: 6px 0 12px;
+}
+.clues-loading { color: #ccc; }
+.no-clues { color: #999; text-align: center; padding: 28px 0; }
+
+.image-clues {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.clue-image img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+  background: #fff;
+}
+
+/* 縮放 Overlay */
+.zoom-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2200;
+}
+.zoom-box { max-width: 92%; max-height: 92%; }
+.zoom-img { width: 100%; height: auto; border-radius: 12px; }
 </style>

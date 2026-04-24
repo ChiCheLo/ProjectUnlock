@@ -173,6 +173,68 @@ const quizTimerRemaining = ref(0)        // 後端回傳的剩餘秒數
 const timerMinutes = ref(10)             // 管理員自訂分鐘數
 let modeStatusPollTimer: ReturnType<typeof setInterval> | null = null
 
+// 管理員線索分配相關
+// 預設顯示 session_id 1..5（管理員要求固定顯示五種選項）
+const activeSessions = ref<number[]>([1, 2, 3, 4, 5])
+const selectedAssignSession = ref<number | null>(null)
+const isAssigning = ref(false)
+
+async function loadActiveSessions() {
+  try {
+    const res = await fetch('/api/active-sessions/')
+    const data = await res.json()
+    if (data.ok) {
+      // 如果後端提供 sessions，合併但保留預設 1..5 作為底
+      const srv = data.sessions || []
+      // 合併並去重，確保至少含有預設 1..5
+      const merged = Array.from(new Set([...activeSessions.value, ...srv])).sort((a, b) => a - b)
+      activeSessions.value = merged
+      if (activeSessions.value.length > 0 && selectedAssignSession.value === null) {
+        selectedAssignSession.value = activeSessions.value[0]
+      }
+    }
+  } catch (err) {
+    console.warn('loadActiveSessions failed', err)
+  }
+}
+
+async function assignCluesToGroups() {
+  if (selectedAssignSession.value === null) {
+    alert('請先選擇 session_id')
+    return
+  }
+  if (!confirm(`確定要為 session ${selectedAssignSession.value} 分配線索嗎？`)) return
+  isAssigning.value = true
+  try {
+    const res = await fetch('/api/assign-clues/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: selectedAssignSession.value })
+    })
+    const data = await res.json()
+    if (!data.ok) {
+      alert('分配失敗：' + (data.error || '未知錯誤'))
+      return
+    }
+
+    const results = data.results || []
+    // 建構簡單結果訊息
+    let assignedCount = results.filter((r: any) => r.status === 'assigned').length
+    let skippedCount = results.length - assignedCount
+    let message = `分配完成：總共 ${results.length} 個線索，已分配 ${assignedCount} 個，略過 ${skippedCount} 個。\n\n詳細：\n`
+    results.forEach((r: any) => {
+      message += `clue ${r.clue_id} -> group ${r.assigned_group} -> student ${r.assigned_student_id} (${r.status})\\n`
+    })
+    // 顯示前 1000 字以免過長
+    alert(message.slice(0, 1000))
+  } catch (err) {
+    console.error('assignCluesToGroups failed', err)
+    alert('分配失敗，請查看主控台錯誤')
+  } finally {
+    isAssigning.value = false
+  }
+}
+
 const adminTimerDisplay = computed(() => {
   const secs = quizTimerRemaining.value
   if (secs <= 0) return '-- : --'
@@ -229,6 +291,7 @@ async function resetQuizTimer() {
 
 onMounted(async () => {
   await loadQuestions()
+  await loadActiveSessions()
   await loadExhaustedQuestions()
   await loadMyCorrectQuestions()
   scrollToBottom(0)
@@ -897,6 +960,16 @@ function handleLogout() {
     <div v-if="isAdminKT" class="admin-timer-panel">
       <div class="admin-timer-title">⏱ 管理員計時器</div>
       <div class="admin-timer-display">{{ adminTimerDisplay }}</div>
+      <!-- 新增：選擇 session 與線索分配 -->
+      <div class="admin-timer-input-row" style="margin-top:8px; align-items:center">
+        <label class="admin-timer-label" style="white-space:nowrap">選擇 Session</label>
+        <select v-model.number="selectedAssignSession" class="admin-timer-input" style="width:120px">
+          <option v-for="s in activeSessions" :key="s" :value="s">{{ s }}</option>
+        </select>
+      </div>
+      <div class="admin-timer-actions" style="margin-top:8px">
+        <button class="admin-timer-btn start" @click="assignCluesToGroups" :disabled="isAssigning">🔀 線索分配</button>
+      </div>
       <div class="admin-timer-input-row">
         <label class="admin-timer-label">時間（分鐘）</label>
         <input

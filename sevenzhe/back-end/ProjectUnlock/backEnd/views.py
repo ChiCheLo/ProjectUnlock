@@ -1167,6 +1167,144 @@ def get_session_exhausted_questions(request):
 
 @api_view(['GET'])
 @csrf_exempt
+def get_active_sessions(request):
+    """
+    取得目前有學生的 session_id 列表
+    Response: { ok: True, sessions: [0,1,2,...] }
+    """
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT DISTINCT session_id FROM student_table ORDER BY session_id")
+        rows = cursor.fetchall()
+        sessions = [row[0] for row in rows]
+        return Response({'ok': True, 'sessions': sessions})
+    except Exception as err:
+        import traceback
+        return Response({'ok': False, 'error': str(err), 'traceback': traceback.format_exc()}, status=500)
+
+
+@api_view(['POST'])
+@csrf_exempt
+def assign_clues(request):
+    """
+    根據傳入的 session_id，將尚未被完成三次的題目的線索平均隨機分配給該 session 下每個 group 的其中一名學生。
+
+    POST body: { session_id: X }
+
+    回傳格式:
+      { ok: True, results: [{ clue_id, clue_url, question_id, assigned_group, assigned_student_id, status, message }, ...] }
+    """
+    try:
+        body = request.data
+        session_id = body.get('session_id')
+        if session_id is None:
+            return Response({'ok': False, 'error': 'session_id 不能為空'}, status=400)
+        session_id = int(session_id)
+
+        cursor = connection.cursor()
+
+        # 1) 找出已被耗盡的題目 IDs (答對 >=3)
+        cursor.execute("""
+            SELECT ar.question_id
+            FROM answerRecord_table ar
+            JOIN student_table s ON ar.student_id = s.student_id
+            WHERE s.session_id = %s AND ar.is_currect = 1
+            GROUP BY ar.question_id
+            HAVING COUNT(*) >= 3
+        """, [session_id])
+        exhausted_rows = cursor.fetchall()
+        exhausted_ids = [r[0] for r in exhausted_rows]
+
+        # 2) 取得所有未被耗盡的 clue（根據 clue_table 的 question_id）
+        if exhausted_ids:
+            placeholders = ','.join(['%s'] * len(exhausted_ids))
+            # 排除已被耗盡的 question_id，並排除 question_id 為 NULL 的線索
+            query = f"SELECT clue_id, clue, question_id FROM clue_table WHERE question_id IS NOT NULL AND question_id NOT IN ({placeholders}) ORDER BY clue_id"
+            cursor.execute(query, exhausted_ids)
+        else:
+            # 只選擇有對應 question_id 的線索（排除 NULL）
+            cursor.execute("SELECT clue_id, clue, question_id FROM clue_table WHERE question_id IS NOT NULL ORDER BY clue_id")
+
+        clue_rows = cursor.fetchall()
+        if not clue_rows:
+            return Response({'ok': True, 'results': [], 'message': '沒有可分配的線索'})
+
+        clues = [{'clue_id': r[0], 'clue_url': r[1], 'question_id': r[2]} for r in clue_rows]
+
+        # 3) 取得該 session 的 distinct groups
+        cursor.execute("SELECT DISTINCT group_id FROM student_table WHERE session_id = %s ORDER BY group_id", [session_id])
+        group_rows = cursor.fetchall()
+        groups = [r[0] for r in group_rows]
+        if not groups:
+            return Response({'ok': False, 'error': '該 session 沒有任何 group'}, status=400)
+
+        # 4) 取得每個 group 的成員
+        group_members: dict = {}
+        for g in groups:
+            cursor.execute("SELECT student_id FROM student_table WHERE group_id = %s AND session_id = %s", [g, session_id])
+            rows = cursor.fetchall()
+            members = [r[0] for r in rows]
+            group_members[g] = members
+
+        import random
+
+        # 隨機打亂 clues
+        random.shuffle(clues)
+
+        results = []
+        gcount = len(groups)
+
+        # round-robin 分配給 groups
+        for idx, clue in enumerate(clues):
+            target_group = groups[idx % gcount]
+            members = group_members.get(target_group, [])
+            assigned_student = None
+            status = 'skipped'
+            message = ''
+
+            if not members:
+                message = '該組無成員'
+            else:
+                # shuffle members to randomize choice
+                shuffled = members[:]
+                random.shuffle(shuffled)
+                for sid in shuffled:
+                    # 檢查該 student 是否已有此 clue
+                    cursor.execute("SELECT 1 FROM studentClue_table WHERE student_id = %s AND clue_id = %s", [sid, clue['clue_id']])
+                    exists = cursor.fetchone()
+                    if not exists:
+                        # 插入 studentClue_table
+                        try:
+                            cursor.execute("INSERT INTO studentClue_table (clue_id, student_id) VALUES (%s, %s)", [clue['clue_id'], sid])
+                            assigned_student = sid
+                            status = 'assigned'
+                            message = '已分配'
+                            break
+                        except Exception as e:
+                            # 插入失敗（race or constraint），記錄並繼續嘗試其他成員
+                            continue
+                if assigned_student is None:
+                    message = '該組所有成員已有此線索，略過'
+
+            results.append({
+                'clue_id': clue['clue_id'],
+                'clue_url': clue['clue_url'],
+                'question_id': clue['question_id'],
+                'assigned_group': target_group,
+                'assigned_student_id': assigned_student,
+                'status': status,
+                'message': message
+            })
+
+        return Response({'ok': True, 'results': results})
+
+    except Exception as err:
+        import traceback
+        return Response({'ok': False, 'error': str(err), 'traceback': traceback.format_exc()}, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
 def get_my_correct_questions(request):
     """
     查詢某個學生在此 session 中，自己答對過的題目 ID 清單

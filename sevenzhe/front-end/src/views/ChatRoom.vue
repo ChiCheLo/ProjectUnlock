@@ -801,7 +801,7 @@ function goBack() {
         <p class="clues-modal-title">組別線索</p>
         <div v-if="isLoadingGroupClues" class="clues-loading">載入中…</div>
         <div v-else>
-          <div v-if="groupClues.length === 0" class="no-clues">尚無線索</div>
+          <div v-if="groupClues.length === 0" class="no-clues">本組目前沒有線索</div>
           <div v-else class="image-clues">
             <div v-for="(c, i) in groupClues" :key="i" class="clue-image" @click.stop="openZoom(c.clue_url)">
               <img :src="c.clue_url" :alt="`線索${c.clue_id ?? i}`" />
@@ -1264,14 +1264,15 @@ function goBack() {
   position: fixed;
   bottom: 82px; /* above chat input */
   right: 18px;
-  background: linear-gradient(135deg, #6dd3ff, #4b8bff);
-  color: white;
+  background: #fead00;
+  ccolor: #333;
   border: none;
   padding: 12px 16px;
   border-radius: 999px;
-  box-shadow: 0 8px 20px rgba(75,139,255,0.24);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.18);
   cursor: pointer;
   z-index: 1600;
+
 }
 
 /* 組別線索 modal */
@@ -1285,7 +1286,7 @@ function goBack() {
   z-index: 1700;
 }
 .clues-modal-inner {
-  background: #121224;
+  background: #fff;
   border-radius: 16px;
   padding: 18px;
   width: 92%;
@@ -1295,12 +1296,12 @@ function goBack() {
   overflow-y: auto;
 }
 .clues-modal-title {
-  color: #fff;
+  color: #333;
   font-weight: 700;
   margin: 6px 0 12px;
 }
 .clues-loading { color: #ccc; }
-.no-clues { color: #999; text-align: center; padding: 28px 0; }
+.no-clues { color: #666; text-align: center; padding: 28px 0; }
 
 .image-clues {
   display: grid;

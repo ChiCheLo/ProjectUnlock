@@ -154,6 +154,91 @@ const progressText = ref('0 / 9')
 const cluesFoundText = ref('0 / 40')
 const showCluesModal = ref(false)
 
+// 新的組別線索 modal（使用不同名稱，避開舊的失敗版本）
+const showGroupCluesModal = ref(false)
+const groupClues = ref<string[]>([])
+const isLoadingGroupClues = ref(false)
+
+// 放大檢視狀態
+const zoomImage = ref<string | null>(null)
+const openZoom = (url: string) => {
+  zoomImage.value = url
+}
+
+const fetchGroupClues = async () => {
+  try {
+    const studentId = localStorage.getItem('student_id')
+    const groupId = localStorage.getItem('group_id')
+    if (!studentId && !groupId) {
+      alert('找不到 student_id 或 group_id，無法顯示組別線索')
+      return
+    }
+
+    // 優先使用 localStorage 的 group_id
+    let gid = groupId
+    if (!gid) {
+      // 若沒有 group_id，可以嘗試以 student_id 查詢（若有此 API）
+      // 保守起見先 alert 並返回
+      alert('找不到 group_id，請先登入或確認 localStorage')
+      return
+    }
+
+    isLoadingGroupClues.value = true
+
+    // 取得組員
+    const membersResp = await fetch(`/api/group-members/?group_id=${gid}`)
+    const membersData = await membersResp.json()
+    if (!membersData.ok) {
+      alert('無法取得組員：' + (membersData.error || ''))
+      return
+    }
+    const members: any[] = membersData.data || []
+    const studentIds = members.map(m => m.student_id)
+    if (studentIds.length === 0) {
+      // fallback: 若沒有從 API 取得成員，至少用自己
+      if (studentId) studentIds.push(Number(studentId))
+    }
+
+    // 並行抓每位同組學生的線索
+    const fetches = studentIds.map(sid =>
+      fetch(`/api/student-clues/?student_id=${sid}`).then(r => r.json()).catch(() => ({ ok: false }))
+    )
+    const results = await Promise.all(fetches)
+
+    const set = new Set<string>()
+    const normalize = (u: string) => {
+      if (!u) return ''
+      let url = u
+      if (url.includes('assets/clues/')) {
+        url = url.replace('assets/clues/', '/clues/')
+      } else if (url.startsWith('assets/')) {
+        url = url.replace('assets/', '/clues/')
+      } else if (url.includes('public/clues/')) {
+        url = url.replace('public/clues/', '/clues/')
+      } else if (url.startsWith('public/')) {
+        url = url.replace('public/', '/')
+      }
+      return url
+    }
+
+    results.forEach((res: any) => {
+      if (res && res.ok && Array.isArray(res.data)) {
+        res.data.forEach((c: any) => {
+          if (c.clue_url) set.add(normalize(c.clue_url))
+        })
+      }
+    })
+
+    groupClues.value = Array.from(set)
+    showGroupCluesModal.value = true
+  } catch (err) {
+    console.error('fetchGroupClues error', err)
+    alert('載入組別線索失敗')
+  } finally {
+    isLoadingGroupClues.value = false
+  }
+}
+
 const showSidebar = ref(false)
 const sidebarSection = ref<string | null>(null)
 const players = ref<string[]>(['玩家一', '玩家二', '玩家三'])
@@ -493,6 +578,39 @@ function handleDecision(choice: '建立' | '不建立') {
         <p class="entry-clue-hint">5 秒後自動進入，或點擊旁邊關閉</p>
       </div>
     </div>
+
+    <!-- 組別線索 按鈕（固定在頁面底部） -->
+    <button class="group-clues-btn" @click="fetchGroupClues" :disabled="isLoadingGroupClues">
+      組別線索
+    </button>
+
+    <!-- 組別線索 Overlay -->
+    <transition name="fade">
+      <div v-if="showGroupCluesModal" class="clues-modal-overlay" @click.self="showGroupCluesModal = false">
+        <div class="clues-modal">
+          <div class="clues-modal-inner">
+            <div v-if="isLoadingGroupClues" class="clues-loading">載入中...</div>
+              <div v-else-if="groupClues && groupClues.length > 0" class="clues-list image-clues">
+              <div v-for="(url, idx) in groupClues" :key="url" class="clue-item">
+                <div class="clue-image" @click="openZoom(url)">
+                  <img :src="url" :alt="`線索 ${idx + 1}`" />
+                </div>
+              </div>
+            </div>
+            <div v-else class="no-clues">本組目前沒有線索</div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- Zoom overlay -->
+    <transition name="fade">
+      <div v-if="zoomImage" class="zoom-overlay" @click.self="zoomImage = null">
+        <div class="zoom-box">
+          <img :src="zoomImage" alt="zoomed clue" class="zoom-img" />
+        </div>
+      </div>
+    </transition>
 
   <Sidebar
     v-if="showSidebar"
@@ -1535,6 +1653,84 @@ function handleDecision(choice: '建立' | '不建立') {
   font-size: 12px;
   color: #777;
   margin: 12px 0 0;
+}
+
+/* 組別線索按鈕 */
+.group-clues-btn {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 260;
+  background: #fead00;
+  color: #333;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 999px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.18);
+}
+
+.group-clues-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* modal 的圖片格子 */
+.image-clues {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.image-clues .clue-item {
+  aspect-ratio: 4 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff4d8;
+  border: 2px solid #fead00;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clue-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.no-clues {
+  color: #666;
+  text-align: center;
+  padding: 20px;
+}
+
+/* Zoom overlay */
+.zoom-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2800;
+}
+
+.zoom-box {
+  max-width: 90vw;
+  max-height: 90vh;
+  padding: 12px;
+  background: transparent;
+}
+
+.zoom-img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
 }
 
 /* 決策彈出視窗樣式 */

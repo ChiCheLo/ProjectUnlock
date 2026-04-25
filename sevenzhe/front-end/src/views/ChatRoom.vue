@@ -1265,7 +1265,7 @@ function goBack() {
   bottom: 82px; /* above chat input */
   right: 18px;
   background: #fead00;
-  ccolor: #333;
+  color: #333;
   border: none;
   padding: 12px 16px;
   border-radius: 999px;

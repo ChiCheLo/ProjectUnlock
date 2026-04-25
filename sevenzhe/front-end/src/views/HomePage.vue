@@ -491,7 +491,7 @@ onBeforeUnmount(() => {
                 <div class="mode-icon-bg">
                   <img
                     src="/public/模式選擇/知識樹.png"
-                    alt="搶答模式"
+                    alt="知識樹"
                     class="quiz-img"
                   />
                 </div>

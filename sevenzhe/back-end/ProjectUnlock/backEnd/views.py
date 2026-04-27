@@ -923,6 +923,31 @@ def quiz_answer_check(request):
         except Exception as e:
             print(f"[WARN] 插入 studentClue_table 失敗: {e}")
 
+        # 答對時：把該學生的 group 的 coin_amount +1（若 table/欄位存在）
+        try:
+            cursor.execute("SELECT group_id FROM student_table WHERE student_id = %s LIMIT 1", [student_id])
+            gid_row = cursor.fetchone()
+            if gid_row and gid_row[0] is not None:
+                gid = gid_row[0]
+                try:
+                    cursor.execute(
+                        "UPDATE groupValue_table SET coin_amount = COALESCE(coin_amount, 0) + 1 WHERE group_id = %s",
+                        [gid]
+                    )
+                    try:
+                        conn.connection.commit()
+                    except Exception:
+                        # fallback commit
+                        from django.db import connection as _conn
+                        try:
+                            _conn.connection.commit()
+                        except Exception:
+                            pass
+                except Exception as e:
+                    print(f"[WARN] 更新 groupValue_table.coin_amount 失敗（可能無此欄位或資料表）：{e}")
+        except Exception as e:
+            print(f"[WARN] 讀取 student.group_id 失敗: {e}")
+
         # 將 assets/ 前綴轉換為前端可用的 /clues/... 路徑
         clue_url = clue_path
         if clue_url.startswith('assets/clues/'):

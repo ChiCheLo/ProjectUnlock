@@ -94,6 +94,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { sendLog } from '../api/webLog'
 
 const emit = defineEmits<{ (e: 'trade-completed'): void }>()
 
@@ -220,6 +221,7 @@ async function submitTrade() {
     })
     const data = await res.json()
     if (data.ok) {
+      sendLog(`提出線索交易申請：對象玩家ID=${selectedPlayerId.value}，線索ID=${selectedClue.value.clue_id}，提供金幣=${offerCoin.value}`)
       alert('✅ 交易申請已送出！等待對方回應。')
       closeModal()
     } else {
@@ -289,9 +291,12 @@ async function respondTrade(action: 'accept' | 'reject') {
     const data = await res.json()
     if (!data.ok) alert('操作失敗：' + data.error)
     else if (action === 'accept') {
+      sendLog(`接受線索交易：來自玩家ID=${incomingTrade.value.from_student_id}，線索ID=${incomingTrade.value.clue_id}，獲得金幣=${incomingTrade.value.coin_amount}`)
       alert('✅ 交易完成！金幣已入帳。')
       emit('trade-completed')
-      window.dispatchEvent(new CustomEvent('clue-trade-completed'))  // 全域通知
+      window.dispatchEvent(new CustomEvent('clue-trade-completed'))
+    } else if (action === 'reject') {
+      sendLog(`拒絕線索交易：來自玩家ID=${incomingTrade.value.from_student_id}，線索ID=${incomingTrade.value.clue_id}`)
     }
   } catch {
     alert('操作失敗，請確認網路連線')

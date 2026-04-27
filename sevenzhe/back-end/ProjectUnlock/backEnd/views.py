@@ -451,6 +451,51 @@ def get_group_values(request):
 
 @api_view(['GET'])
 @csrf_exempt
+def get_my_group_coin(request):
+    """
+    取得目前登入玩家所在組別的 coin_amount
+    Query params:
+      - student_id: 學生 ID
+    回傳: { ok: true, data: { group_id, coin_amount } }
+    """
+    try:
+        student_id = request.query_params.get('student_id')
+        if not student_id:
+            return Response({'ok': False, 'error': 'student_id 不能為空'}, status=400)
+
+        cursor = connection.cursor()
+
+        # 查詢學生的 group_id
+        cursor.execute(
+            "SELECT group_id FROM student_table WHERE student_id = %s LIMIT 1",
+            [student_id]
+        )
+        row = cursor.fetchone()
+        if not row:
+            return Response({'ok': False, 'error': '找不到該學生'}, status=404)
+
+        group_id = row[0]
+
+        # 查詢 groupValue_table 中的 coin_amount
+        coin_amount = None
+        try:
+            cursor.execute(
+                "SELECT coin_amount FROM groupValue_table WHERE group_id = %s LIMIT 1",
+                [group_id]
+            )
+            coin_row = cursor.fetchone()
+            coin_amount = coin_row[0] if coin_row else None
+        except Exception:
+            coin_amount = None  # 欄位不存在時不報錯，回傳 null
+
+        return Response({'ok': True, 'data': {'group_id': group_id, 'coin_amount': coin_amount}})
+    except Exception as err:
+        import traceback
+        return Response({'ok': False, 'error': str(err), 'traceback': traceback.format_exc()}, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
 def get_student_clues(request):
     """
     獲取學生擁有的線索

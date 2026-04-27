@@ -9,17 +9,56 @@
         </button>
         <h1 class="header-title" @click="goToHome">破解安洛克</h1>
       </div>
+
+      <!-- Header 最右邊的組別金幣顯示，點擊可立即刷新 -->
+      <div class="header-coin" title="組別金幣（點擊刷新）" @click="loadMyGroupCoin">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="10" fill="#FFD54A" stroke="#C8960C" stroke-width="1" />
+          <text x="12" y="16.5" text-anchor="middle" font-size="12" font-weight="800" fill="#8A5C00">$</text>
+        </svg>
+        <span class="coin-text">{{ coinDisplay }}</span>
+      </div>
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 
 const router = useRouter()
 
+// ── 組別金幣 ──────────────────────────────────────────────
+const coinAmount = ref<number | null>(null)
+let coinTimer: ReturnType<typeof setInterval> | null = null
+
+const coinDisplay = computed(() =>
+  coinAmount.value == null ? '—' : String(coinAmount.value)
+)
+
+async function loadMyGroupCoin() {
+  try {
+    const studentId = localStorage.getItem('student_id')
+    if (!studentId) { coinAmount.value = null; return }
+    const res = await fetch(`/api/my-group-coin/?student_id=${encodeURIComponent(studentId)}`)
+    const json = await res.json()
+    coinAmount.value = json.ok && json.data ? (json.data.coin_amount ?? null) : null
+  } catch (e) {
+    coinAmount.value = null
+  }
+}
+
+onMounted(() => {
+  loadMyGroupCoin()
+  coinTimer = setInterval(loadMyGroupCoin, 10000)
+})
+
+onBeforeUnmount(() => {
+  if (coinTimer) clearInterval(coinTimer)
+})
+// ──────────────────────────────────────────────────────────
+
 function goToHome() {
-  // 導航到首頁
   router.push('/')
 }
 </script>
@@ -33,10 +72,30 @@ function goToHome() {
   top: 0;
   z-index: 100;
 }
-.header-content { display:flex; justify-content:flex-start; align-items:center }
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 .header-left { display:flex; align-items:center; gap:16px }
-.header-title { 
-  font-size:18px; 
+
+/* ── 最右邊的金幣 ── */
+.header-coin {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.coin-text {
+  font-weight: 700;
+  font-size: 16px;
+  color: #8A5C00;
+  min-width: 24px;
+}
+
+.header-title {
+  font-size:18px;
   color:#333;
   cursor: pointer;
   transition: color 0.2s ease;

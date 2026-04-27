@@ -21,6 +21,7 @@ urlpatterns = [
     # 組別 API
     path('group-members/', views.get_group_members, name='get_group_members'),
     path('group-values/', views.get_group_values, name='get_group_values'),
+    path('my-group-coin/', views.get_my_group_coin, name='get_my_group_coin'),
     path('group-policies/', views.get_group_policies, name='get_group_policies'),
     path('group-policy-count/', views.get_group_policy_count, name='get_group_policy_count'),
     path('group-clues-count/', views.get_group_clues_count, name='get_group_clues_count'),

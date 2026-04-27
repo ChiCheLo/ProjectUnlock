@@ -37,39 +37,68 @@ const circleCircumference = 2 * Math.PI * circleR
 
 async function loadGroupValues() {
   try {
-    const groupId = localStorage.getItem('group_id')
+    const groupId   = localStorage.getItem('group_id')
+    const studentId = localStorage.getItem('student_id')
     if (!groupId) return
 
-    const resp = await fetch(`/api/group-values/?group_id=${groupId}`)
-    const json = await resp.json()
+    // 同時取組別數值與組別金幣
+    const [valResp, coinResp] = await Promise.all([
+      fetch(`/api/group-values/?group_id=${groupId}`),
+      studentId ? fetch(`/api/my-group-coin/?student_id=${encodeURIComponent(studentId)}`) : Promise.resolve(null)
+    ])
+
+    const json = await valResp.json()
     if (!json.ok) {
       console.error('Failed to load group values', json.error)
       return
     }
 
+    // 取得 coin_amount（若失敗則為 0）
+    let coin = 0
+    if (coinResp) {
+      try {
+        const coinJson = await coinResp.json()
+        coin = (coinJson.ok && coinJson.data?.coin_amount != null) ? Number(coinJson.data.coin_amount) : 0
+      } catch { /* silent */ }
+    }
+    coinAmount.value = coin
+
     const d = json.data
-    // 轉換並填入 stats（對應順序: 經濟, 人口, 健康, 糧食, 電力）
     const map: Record<string, number> = {
-      economy: Number(d.economy) || 0,
+      economy:    Number(d.economy)    || 0,
       polulation: Number(d.polulation) || 0,
-      healthy: Number(d.healthy) || 0,
-      food: Number(d.food) || 0,
+      healthy:    Number(d.healthy)    || 0,
+      food:       Number(d.food)       || 0,
       eletricity: Number(d.eletricity) || 0
     }
 
-    const updated = [
-      { label: '經濟', value: Math.max(0, Math.min(100, map.economy)), color: '#87FF7C' },
-      { label: '人口', value: Math.max(0, Math.min(100, map.polulation)), color: '#7C7EFF' },
-      { label: '健康', value: Math.max(0, Math.min(100, map.healthy)), color: '#FF7C7C' },
-      { label: '糧食', value: Math.max(0, Math.min(100, map.food)), color: '#FFC47C' },
-      { label: '電力', value: Math.max(0, Math.min(100, map.eletricity)), color: '#FFEE7C' }
+    stats.value = [
+      { label: '經濟', value: Math.max(0, Math.min(100, map.economy + coin)), color: '#87FF7C' },
+      { label: '人口', value: Math.max(0, Math.min(100, map.polulation)),      color: '#7C7EFF' },
+      { label: '健康', value: Math.max(0, Math.min(100, map.healthy)),         color: '#FF7C7C' },
+      { label: '糧食', value: Math.max(0, Math.min(100, map.food)),            color: '#FFC47C' },
+      { label: '電力', value: Math.max(0, Math.min(100, map.eletricity)),      color: '#FFEE7C' }
     ]
-
-    stats.value = updated
   } catch (err) {
     console.error('loadGroupValues error', err)
   }
 }
+
+// ── 組別金幣 ──────────────────────────────────────────────
+const coinAmount = ref<number | null>(null)
+
+async function loadGroupCoin() {
+  try {
+    const studentId = localStorage.getItem('student_id')
+    if (!studentId) return
+    const res  = await fetch(`/api/my-group-coin/?student_id=${encodeURIComponent(studentId)}`)
+    const json = await res.json()
+    coinAmount.value = (json.ok && json.data?.coin_amount != null) ? Number(json.data.coin_amount) : null
+  } catch (err) {
+    console.error('loadGroupCoin error', err)
+  }
+}
+// ──────────────────────────────────────────────────────────
 
 // 建設卡片資料 - 從 API 載入
 const buildingCards = ref<BuildingCard[]>([])
@@ -981,6 +1010,24 @@ onBeforeUnmount(() => {
   gap: 12px;
   flex-shrink: 0;
   justify-content: center;
+}
+
+.coin-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+.coin-label {
+  color: #666;
+  font-size: 15px;
+}
+.coin-value {
+  font-weight: 700;
+  font-size: 18px;
+  color: #8A5C00;
+  min-width: 28px;
+  text-align: left;
 }
 
 .happiness-label {

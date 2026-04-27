@@ -3,7 +3,6 @@ import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Header from '../components/Header.vue'
 import Sidebar from '../components/Sidebar.vue'
-import ClueTrade from '../components/ClueTrade.vue'
 import { sendLog } from '../api/webLog'
 
 type Domain = { name: string; color: string; image?: string }
@@ -125,6 +124,9 @@ onMounted(() => {
   loadPolicyCount()
   loadCluesCount()
   loadCompletedDomains()
+
+  // 交易完成時刷新線索數量
+  window.addEventListener('clue-trade-completed', onTradeCompleted)
 
   // 每 3 秒輪詢海龜湯模式狀態
   checkTurtleEnabled()
@@ -429,7 +431,14 @@ onBeforeUnmount(() => {
     clearInterval(turtleModeTimer)
     turtleModeTimer = null
   }
+  window.removeEventListener('clue-trade-completed', onTradeCompleted)
 })
+
+function onTradeCompleted() {
+  loadCluesCount()
+  loadCompletedDomains()
+}
+
 function toggleSidebar() {
   showSidebar.value = !showSidebar.value
 }
@@ -470,7 +479,6 @@ function handleDecision(choice: '建立' | '不建立') {
 <template>
   <div class="page-wrapper">
     <Header @toggle-sidebar="toggleSidebar" />
-    <ClueTrade @trade-completed="() => { loadCluesCount(); loadCompletedDomains() }" />
 
     <main class="main-content seaturtle-main">
       <!-- 返回按鈕 -->

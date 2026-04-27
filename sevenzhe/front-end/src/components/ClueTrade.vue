@@ -290,7 +290,8 @@ async function respondTrade(action: 'accept' | 'reject') {
     if (!data.ok) alert('操作失敗：' + data.error)
     else if (action === 'accept') {
       alert('✅ 交易完成！金幣已入帳。')
-      emit('trade-completed')   // 通知父層更新線索數量
+      emit('trade-completed')
+      window.dispatchEvent(new CustomEvent('clue-trade-completed'))  // 全域通知
     }
   } catch {
     alert('操作失敗，請確認網路連線')

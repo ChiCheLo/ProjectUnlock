@@ -205,8 +205,11 @@ onMounted(() => {
   // 載入遊戲模式狀態
   loadModeStatus()
 
-  // 每 3 秒輪詢一次模式狀態
-  modeStatusTimer = setInterval(loadModeStatus, 3000)
+  // 每 3 秒輪詢一次模式狀態與國家狀態
+  modeStatusTimer = setInterval(() => {
+    loadModeStatus()
+    loadGroupValues()
+  }, 3000)
 })
 
 // 從 localStorage 讀取學生名字

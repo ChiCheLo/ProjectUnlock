@@ -50,7 +50,7 @@ async function loadMyGroupCoin() {
 
 onMounted(() => {
   loadMyGroupCoin()
-  coinTimer = setInterval(loadMyGroupCoin, 10000)
+  coinTimer = setInterval(loadMyGroupCoin, 5000)
 })
 
 onBeforeUnmount(() => {

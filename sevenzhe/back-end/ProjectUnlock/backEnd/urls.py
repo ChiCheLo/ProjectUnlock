@@ -20,8 +20,15 @@ urlpatterns = [
     
     # 組別 API
     path('group-members/', views.get_group_members, name='get_group_members'),
+    path('session-members/', views.get_session_members, name='get_session_members'),
+    path('heartbeat/', views.student_heartbeat, name='student_heartbeat'),
     path('group-values/', views.get_group_values, name='get_group_values'),
     path('my-group-coin/', views.get_my_group_coin, name='get_my_group_coin'),
+
+    # 線索交易 API
+    path('trade-request/', views.create_trade_request, name='create_trade_request'),
+    path('pending-trades/', views.get_pending_trades, name='get_pending_trades'),
+    path('trade-respond/', views.respond_trade, name='respond_trade'),
     path('group-policies/', views.get_group_policies, name='get_group_policies'),
     path('group-policy-count/', views.get_group_policy_count, name='get_group_policy_count'),
     path('group-clues-count/', views.get_group_clues_count, name='get_group_clues_count'),

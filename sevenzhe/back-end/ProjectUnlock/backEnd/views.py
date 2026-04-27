@@ -18,6 +18,10 @@ _game_mode = {
     'quiz_timer_end': None,  # Unix timestamp，None 表示未計時
 }
 
+# ─── 在線心跳（student_id → last_seen timestamp）────────────────────
+_ONLINE_TIMEOUT = 30  # 超過 30 秒視為離線
+_online_heartbeats: dict = {}  # str(student_id) -> float(unix timestamp)
+
 
 @api_view(['GET'])
 def get_mode_status(request):
@@ -338,57 +342,107 @@ def get_leaderboard(request):
         return Response({'ok': False, 'error': str(err)}, status=500)
 
 
+@api_view(['POST'])
+@csrf_exempt
+def student_heartbeat(request):
+    """
+    前端每 15 秒呼叫一次，更新該學生的在線時間戳記
+    Body: { student_id }
+    """
+    student_id = str(request.data.get('student_id', '')).strip()
+    if not student_id:
+        return Response({'ok': False, 'error': 'student_id 不能為空'}, status=400)
+    _online_heartbeats[student_id] = time.time()
+    return Response({'ok': True})
+
+
 @api_view(['GET'])
 @csrf_exempt
 def get_group_members(request):
     """
     獲取同組成員 API
-    
+
     Query parameters:
     - group_id: 組別ID
     - student_id: 當前學生ID (可選，用於排除自己)
+    - online_only: 'true' 時只回傳在線玩家（心跳 30 秒內）
     """
     try:
-        group_id = request.query_params.get('group_id')
+        group_id   = request.query_params.get('group_id')
         student_id = request.query_params.get('student_id')
         session_id = request.query_params.get('session_id')
+        online_only = request.query_params.get('online_only', 'false').lower() == 'true'
 
         if not group_id:
-            return Response({
-                'ok': False,
-                'error': '組別ID不能為空'
-            }, status=400)
+            return Response({'ok': False, 'error': '組別ID不能為空'}, status=400)
 
         # 查詢同組且同 session 的成員
         members = Student.objects.filter(group_id=group_id)
         if session_id:
             members = members.filter(session_id=session_id)
 
-        # 如果提供了 student_id，則排除自己
+        # 排除自己
         if student_id:
             members = members.exclude(student_id=student_id)
 
+        now = time.time()
+
         # 構建回應數據
+        data = []
+        for member in members:
+            sid = str(member.student_id)
+            last_seen = _online_heartbeats.get(sid)
+            is_online = (last_seen is not None) and (now - last_seen <= _ONLINE_TIMEOUT)
+
+            if online_only and not is_online:
+                continue
+
+            data.append({
+                'student_id':   member.student_id,
+                'student_name': member.student_name,
+                'account':      member.account,
+                'group_id':     member.group_id,
+                'session_id':   member.session_id,
+                'online':       is_online,
+            })
+
+        return Response({'ok': True, 'data': data})
+    except Exception as err:
+        return Response({'ok': False, 'error': str(err)}, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
+def get_session_members(request):
+    """
+    取得當前 session 的所有學生（排除自己），用於交易對象選單
+    Query params:
+      - session_id: 必填
+      - student_id: 可選，用於排除自己
+    回傳: { ok: true, data: [{ student_id, student_name, group_id }] }
+    """
+    try:
+        session_id = request.query_params.get('session_id')
+        student_id = request.query_params.get('student_id')
+
+        if not session_id:
+            return Response({'ok': False, 'error': 'session_id 不能為空'}, status=400)
+
+        members = Student.objects.filter(session_id=session_id)
+        if student_id:
+            members = members.exclude(student_id=student_id)
+
         data = [
             {
-                'student_id': member.student_id,
-                'student_name': member.student_name,
-                'account': member.account,
-                'group_id': member.group_id,
-                'session_id': member.session_id
+                'student_id':   m.student_id,
+                'student_name': m.student_name,
+                'group_id':     m.group_id,
             }
-            for member in members
+            for m in members
         ]
-
-        return Response({
-            'ok': True,
-            'data': data
-        })
+        return Response({'ok': True, 'data': data})
     except Exception as err:
-        return Response({
-            'ok': False,
-            'error': str(err)
-        }, status=500)
+        return Response({'ok': False, 'error': str(err)}, status=500)
 
 
 @api_view(['GET'])
@@ -530,13 +584,15 @@ def get_student_clues(request):
         # 查詢 clue_table 中對應的數據
         # clue_table 的結構是: clue_id, clue(URL路徑), question_id, soup_id, source_type
         placeholders = ','.join(['%s'] * len(clue_ids))
-        query = f"SELECT clue FROM clue_table WHERE clue_id IN ({placeholders}) ORDER BY clue_id"
+        query = f"SELECT clue_id, clue FROM clue_table WHERE clue_id IN ({placeholders}) ORDER BY clue_id"
         cursor.execute(query, clue_ids)
         rows = cursor.fetchall()
         
         for row in rows:
-            clue_url = row[0] if row[0] else ''
+            clue_id_val = row[0]
+            clue_url = row[1] if row[1] else ''
             clues_data.append({
+                'clue_id': clue_id_val,
                 'clue_url': clue_url
             })
         
@@ -1759,3 +1815,180 @@ def save_web_log(request):
         return Response({'ok': True})
     except Exception as err:
         return Response({'ok': False, 'error': str(err)}, status=500)
+
+
+# ─── 線索交易系統（In-Memory）─────────────────────────────────────────────
+import uuid as _uuid_mod
+
+_trades = {}  # trade_id -> trade_info dict
+
+
+@api_view(['POST'])
+@csrf_exempt
+def create_trade_request(request):
+    """
+    提出線索交易申請
+    Body: { from_student_id, to_student_id, clue_id, clue_url, coin_amount }
+    回傳: { ok: true, trade_id }
+    """
+    try:
+        data = request.data
+        from_student_id = str(data.get('from_student_id', ''))
+        to_student_id   = str(data.get('to_student_id', ''))
+        clue_id         = data.get('clue_id')
+        clue_url        = data.get('clue_url', '')
+        coin_amount     = int(data.get('coin_amount', 0))
+
+        if not from_student_id or not to_student_id or clue_id is None:
+            return Response({'ok': False, 'error': '缺少必要參數 (from_student_id / to_student_id / clue_id)'}, status=400)
+
+        cursor = connection.cursor()
+        cursor.execute(
+            "SELECT student_name FROM student_table WHERE student_id = %s LIMIT 1",
+            [from_student_id]
+        )
+        row = cursor.fetchone()
+        from_student_name = row[0] if row else from_student_id
+
+        trade_id = str(_uuid_mod.uuid4())
+        _trades[trade_id] = {
+            'id': trade_id,
+            'from_student_id': from_student_id,
+            'from_student_name': from_student_name,
+            'to_student_id': to_student_id,
+            'clue_id': clue_id,
+            'clue_url': clue_url,
+            'coin_amount': coin_amount,
+            'status': 'pending',
+        }
+
+        return Response({'ok': True, 'trade_id': trade_id})
+    except Exception as err:
+        import traceback
+        return Response({'ok': False, 'error': str(err), 'traceback': traceback.format_exc()}, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
+def get_pending_trades(request):
+    """
+    取得待處理的交易（給 to_student 輪詢用）
+    Query: student_id
+    回傳: { ok: true, data: [ trade_info, ... ] }
+    """
+    try:
+        student_id = str(request.query_params.get('student_id', ''))
+        if not student_id:
+            return Response({'ok': False, 'error': 'student_id 不能為空'}, status=400)
+
+        pending = [
+            t for t in _trades.values()
+            if str(t['to_student_id']) == student_id and t['status'] == 'pending'
+        ]
+        return Response({'ok': True, 'data': pending})
+    except Exception as err:
+        return Response({'ok': False, 'error': str(err)}, status=500)
+
+
+@api_view(['POST'])
+@csrf_exempt
+def respond_trade(request):
+    """
+    回應交易（接受或拒絕）
+    Body: { trade_id, action: 'accept'|'reject', student_id }
+    接受時：轉移線索、to_student 的 group coin += coin_amount
+    """
+    try:
+        data = request.data
+        trade_id   = str(data.get('trade_id', ''))
+        action     = data.get('action', '')
+        student_id = str(data.get('student_id', ''))
+
+        if trade_id not in _trades:
+            return Response({'ok': False, 'error': '找不到該交易'}, status=404)
+
+        trade = _trades[trade_id]
+
+        if str(trade['to_student_id']) != student_id:
+            return Response({'ok': False, 'error': '無權限操作此交易'}, status=403)
+
+        if trade['status'] != 'pending':
+            return Response({'ok': False, 'error': '此交易已處理'}, status=400)
+
+        if action == 'reject':
+            del _trades[trade_id]
+            return Response({'ok': True, 'message': '已拒絕交易'})
+
+        if action == 'accept':
+            cursor = connection.cursor()
+
+            # 1. 從 to_student 移除線索
+            try:
+                cursor.execute(
+                    "DELETE FROM studentClue_table WHERE student_id = %s AND clue_id = %s",
+                    [trade['to_student_id'], trade['clue_id']]
+                )
+                connection.commit()
+            except Exception as e:
+                try: connection.rollback()
+                except: pass
+                return Response({'ok': False, 'error': f'移除線索失敗: {e}'}, status=500)
+
+            # 2. 將線索加給 from_student
+            try:
+                cursor.execute(
+                    "INSERT IGNORE INTO studentClue_table (student_id, clue_id) VALUES (%s, %s)",
+                    [trade['from_student_id'], trade['clue_id']]
+                )
+                connection.commit()
+            except Exception as e:
+                try: connection.rollback()
+                except: pass
+                return Response({'ok': False, 'error': f'轉移線索失敗: {e}'}, status=500)
+
+            # 3. to_student 的 group coin += coin_amount（出線索方獲得金幣）
+            #    from_student 的 group coin -= coin_amount（申請方付出金幣）
+            if trade['coin_amount'] > 0:
+                try:
+                    # 出線索方（to_student）的 group 加幣
+                    cursor.execute(
+                        "SELECT group_id FROM student_table WHERE student_id = %s LIMIT 1",
+                        [trade['to_student_id']]
+                    )
+                    grp_row = cursor.fetchone()
+                    if grp_row:
+                        cursor.execute(
+                            "UPDATE groupValue_table SET coin_amount = COALESCE(coin_amount, 0) + %s WHERE group_id = %s",
+                            [trade['coin_amount'], grp_row[0]]
+                        )
+                        connection.commit()
+                except Exception as e:
+                    print(f'[WARN] to_student coin +  更新失敗: {e}')
+                    try: connection.rollback()
+                    except: pass
+
+                try:
+                    # 提出申請方（from_student）的 group 扣幣（不低於 0）
+                    cursor.execute(
+                        "SELECT group_id FROM student_table WHERE student_id = %s LIMIT 1",
+                        [trade['from_student_id']]
+                    )
+                    from_grp_row = cursor.fetchone()
+                    if from_grp_row:
+                        cursor.execute(
+                            "UPDATE groupValue_table SET coin_amount = GREATEST(COALESCE(coin_amount, 0) - %s, 0) WHERE group_id = %s",
+                            [trade['coin_amount'], from_grp_row[0]]
+                        )
+                        connection.commit()
+                except Exception as e:
+                    print(f'[WARN] from_student coin - 更新失敗: {e}')
+                    try: connection.rollback()
+                    except: pass
+
+            del _trades[trade_id]
+            return Response({'ok': True, 'message': '交易成功'})
+
+        return Response({'ok': False, 'error': f'未知 action: {action}'}, status=400)
+    except Exception as err:
+        import traceback
+        return Response({'ok': False, 'error': str(err), 'traceback': traceback.format_exc()}, status=500)

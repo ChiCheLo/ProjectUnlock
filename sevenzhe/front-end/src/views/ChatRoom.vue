@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Header from "../components/Header.vue";
 import Sidebar from "../components/Sidebar.vue";
+import ClueTrade from "../components/ClueTrade.vue";
 import { callOpenAIChat } from "../api/index.js";
 import { sendLog } from "../api/webLog";
 
@@ -695,6 +696,7 @@ function goBack() {
 
     <!-- 全站 Header -->
     <Header @toggle-sidebar="toggleSidebar" />
+    <ClueTrade />
 
     <!-- 回上一頁 -->
     <header class="top-bar">

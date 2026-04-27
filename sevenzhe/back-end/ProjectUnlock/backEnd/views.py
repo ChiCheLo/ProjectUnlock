@@ -22,6 +22,10 @@ _game_mode = {
 _ONLINE_TIMEOUT = 30  # 超過 30 秒視為離線
 _online_heartbeats: dict = {}  # str(student_id) -> float(unix timestamp)
 
+# ─── 決策政策通知（全域廣播，最多保留 50 則）────────────────────────
+import time as _time_mod
+_policy_notifications: list = []  # [ { id, student_name, policy_title, ts } ]
+_MAX_NOTIFICATIONS = 50
 
 @api_view(['GET'])
 def get_mode_status(request):
@@ -1992,3 +1996,68 @@ def respond_trade(request):
     except Exception as err:
         import traceback
         return Response({'ok': False, 'error': str(err), 'traceback': traceback.format_exc()}, status=500)
+
+
+# ── 決策政策通知 API ──────────────────────────────────────────────────
+
+@api_view(['POST'])
+@csrf_exempt
+def push_policy_notification(request):
+    """
+    ChatRoom 決策完成後，推送廣播通知
+    Body: { student_id, policy_id }
+    """
+    try:
+        data = request.data
+        student_id = data.get('student_id')
+        policy_id  = int(data.get('policy_id', 0))
+
+        cursor = connection.cursor()
+
+        # 取得 student_name
+        cursor.execute(
+            "SELECT student_name FROM student_table WHERE student_id = %s LIMIT 1",
+            [student_id]
+        )
+        row = cursor.fetchone()
+        student_name = row[0] if row else f'玩家{student_id}'
+
+        # 取得 policy_title
+        cursor.execute(
+            "SELECT policy_title FROM policy_table WHERE policy_id = %s LIMIT 1",
+            [policy_id]
+        )
+        prow = cursor.fetchone()
+        policy_title = prow[0] if prow else f'policy_id={policy_id}'
+
+        import uuid as _u
+        notif = {
+            'id': str(_u.uuid4()),
+            'student_name': student_name,
+            'policy_title': policy_title,
+            'ts': _time_mod.time(),
+        }
+        _policy_notifications.append(notif)
+        # 只保留最新 50 則
+        if len(_policy_notifications) > _MAX_NOTIFICATIONS:
+            _policy_notifications.pop(0)
+
+        return Response({'ok': True})
+    except Exception as err:
+        import traceback
+        return Response({'ok': False, 'error': str(err), 'traceback': traceback.format_exc()}, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
+def get_policy_notifications(request):
+    """
+    前端輪詢用：取得最近 N 秒內的政策通知
+    Query: since (unix timestamp，回傳比此時間新的通知)
+    """
+    try:
+        since = float(request.query_params.get('since', 0))
+        result = [n for n in _policy_notifications if n['ts'] > since]
+        return Response({'ok': True, 'data': result})
+    except Exception as err:
+        return Response({'ok': False, 'error': str(err)}, status=500)

@@ -54,6 +54,10 @@ urlpatterns = [
     # 網頁操作 Log
     path('web-log/', views.save_web_log, name='save_web_log'),
 
+    # 決策政策通知
+    path('policy-notification/', views.push_policy_notification, name='push_policy_notification'),
+    path('policy-notifications/', views.get_policy_notifications, name='get_policy_notifications'),
+
     # 管理員用：取得 active sessions 與線索分配
     path('active-sessions/', views.get_active_sessions, name='get_active_sessions'),
     path('assign-clues/', views.assign_clues, name='assign_clues'),

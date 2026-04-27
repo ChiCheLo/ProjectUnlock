@@ -543,6 +543,7 @@ async function loadAndShowEntryClues() {
 
 async function saveGroupPolicy(policyId: number) {
   const groupId = localStorage.getItem('group_id');
+  const studentId = localStorage.getItem('student_id');
   if (!groupId) {
     console.warn('No group_id in localStorage');
     return;
@@ -555,6 +556,14 @@ async function saveGroupPolicy(policyId: number) {
     });
     const policyTitle = policyCardData[policyId]?.title ?? `policy_id=${policyId}`;
     sendLog(`海龜湯【${domainName}】選擇政策：${policyTitle}`);
+    // 廣播通知給所有人
+    if (studentId) {
+      fetch('/api/policy-notification/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: Number(studentId), policy_id: policyId }),
+      }).catch(() => {});
+    }
   } catch (err) {
     console.error('save_group_policy failed:', err);
   }

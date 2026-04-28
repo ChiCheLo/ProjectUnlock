@@ -802,30 +802,35 @@ function goBack() {
     </div>
 
     <!-- 組別線索固定按鈕 -->
-    <button class="group-clues-btn" @click="fetchGroupClues">組別線索</button>
+    <button class="group-clues-btn" @click="fetchGroupClues" :disabled="isLoadingGroupClues">組別線索</button>
 
-    <!-- 組別線索 Overlay（背景點擊可關閉） -->
-    <div v-if="showGroupCluesModal" class="clues-modal-overlay" @click.self="showGroupCluesModal = false">
-      <div class="clues-modal-inner">
-        <p class="clues-modal-title">組別線索</p>
-        <div v-if="isLoadingGroupClues" class="clues-loading">載入中…</div>
-        <div v-else>
-          <div v-if="groupClues.length === 0" class="no-clues">本組目前沒有線索</div>
-          <div v-else class="image-clues">
-            <div v-for="(c, i) in groupClues" :key="i" class="clue-image" @click.stop="openZoom(c.clue_url)">
-              <img :src="c.clue_url" :alt="`線索${c.clue_id ?? i}`" />
+    <!-- 組別線索 Overlay -->
+    <transition name="fade">
+      <div v-if="showGroupCluesModal" class="clues-modal-overlay" @click.self="showGroupCluesModal = false">
+        <div class="clues-modal">
+          <div class="clues-modal-inner">
+            <div v-if="isLoadingGroupClues" class="clues-loading">載入中...</div>
+            <div v-else-if="groupClues && groupClues.length > 0" class="clues-list image-clues">
+              <div v-for="(c, i) in groupClues" :key="i" class="clue-item">
+                <div class="clue-image" @click="openZoom(c.clue_url)">
+                  <img :src="c.clue_url" :alt="`線索 ${i + 1}`" />
+                </div>
+              </div>
             </div>
+            <div v-else class="no-clues">本組目前沒有線索</div>
           </div>
         </div>
       </div>
-    </div>
+    </transition>
 
     <!-- 縮放 Overlay -->
-    <div v-if="zoomImage" class="zoom-overlay" @click.self="zoomImage = null">
-      <div class="zoom-box">
-        <img class="zoom-img" :src="zoomImage" alt="zoom" />
+    <transition name="fade">
+      <div v-if="zoomImage" class="zoom-overlay" @click.self="zoomImage = null">
+        <div class="zoom-box">
+          <img :src="zoomImage" alt="zoomed clue" class="zoom-img" />
+        </div>
       </div>
-    </div>
+    </transition>
 
   </div>
 </template>
@@ -1288,49 +1293,83 @@ function goBack() {
 .clues-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.75);
-  display: flex;
-  justify-content: center;
-  align-items: center;
   z-index: 1700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
 }
-.clues-modal-inner {
+
+.clues-modal {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  max-height: 85vh;
+  border-radius: 30px;
   background: #fff;
-  border-radius: 16px;
-  padding: 18px;
-  width: 92%;
-  max-width: 900px;
-  max-height: 80vh;
-  box-shadow: 0 12px 48px rgba(0,0,0,0.6);
+  padding: 30px 30px;
+  overflow: hidden;
+}
+
+.clues-modal-inner {
+  max-height: calc(85vh - 60px);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
-.clues-modal-title {
-  color: #333;
-  font-weight: 700;
-  margin: 6px 0 12px;
-}
+
 .clues-loading { color: #ccc; }
 .no-clues { color: #666; text-align: center; padding: 28px 0; }
 
 .image-clues {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px;
 }
-.clue-image img {
+
+.image-clues .clue-item {
+  aspect-ratio: 4 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff4d8;
+  border: 2px solid #fead00;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clue-image {
+  cursor: pointer;
   width: 100%;
-  height: 120px;
-  object-fit: cover;
-  border-radius: 10px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clue-image img {
+  width: 85%;
+  height: 85%;
+  object-fit: contain;
   display: block;
-  background: #fff;
+}
+
+/* 動畫 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* 縮放 Overlay */
 .zoom-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.85);
+  background: rgba(0, 0, 0, 0.85);
   display: flex;
   justify-content: center;
   align-items: center;

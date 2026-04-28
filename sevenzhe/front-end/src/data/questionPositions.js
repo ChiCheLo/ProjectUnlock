@@ -1,4 +1,4 @@
-// 新的9題架構配置 - 從上到下: 3星(1題) → 2星(1題) → 1星(7題)
+// 新的7題架構配置 - 從上到下: 3星(1題) → 2星(1題) → 1星(5題)
 // 使用像素單位以實現垂直滾動
 const physicsPositions = [
   // 第1題 (3星) - 頂部中央
@@ -15,28 +15,28 @@ const physicsPositions = [
   { index: 4, x: 30, y: 1000, connections: [6] },
   { index: 5, x: 70, y: 1000, connections: [6] },
   
-  // 第7題 (1星) - 中間
-  { index: 6, x: 50, y: 1300, connections: [7, 8] },
-  
-  // 第8-9題 (1星) - 底部分叉
-  { index: 7, x: 30, y: 1600, connections: [] },
-  { index: 8, x: 70, y: 1600, connections: [] }
+  // 第7題 (1星) - 底部中央
+  { index: 6, x: 50, y: 1300, connections: [] }
 ]
 
-// 化學的5題架構配置 - 從上到下: 3星(2題) → 2星(3題)
+// 化學的7題架構配置 - 從上到下: 3星(2題) → 2星(3題) → 1星(2題)
 const chemistryPositions = [
-  // 第1題 (3星) - 頂部中央
-  { index: 0, x: 50, y: 100, connections: [2] },
+  // 第1-2題 (3星) - 頂部分叉
+  { index: 0, x: 35, y: 100, connections: [2] },
+  { index: 1, x: 65, y: 100, connections: [2] },
   
-  // 第2題 (3星) - 第二層中央
-  { index: 1, x: 50, y: 400, connections: [2] },
+  // 第3題 (2星) - 合併中間
+  { index: 2, x: 50, y: 400, connections: [3, 4] },
   
-  // 第3題 (2星) - 中間
-  { index: 2, x: 50, y: 700, connections: [3, 4] },
+  // 第4-5題 (2星) - 分叉
+  { index: 3, x: 30, y: 700, connections: [5] },
+  { index: 4, x: 70, y: 700, connections: [5] },
   
-  // 第4-5題 (2星) - 底部分叉
-  { index: 3, x: 30, y: 1000, connections: [] },
-  { index: 4, x: 70, y: 1000, connections: [] }
+  // 第6題 (1星) - 合併
+  { index: 5, x: 50, y: 1000, connections: [6] },
+
+  // 第7題 (1星) - 底部中央
+  { index: 6, x: 50, y: 1300, connections: [] }
 ]
 
 // 生物的8題架構配置 - 從上到下: 3星(2題) → 2星(3題) → 1星(3題)

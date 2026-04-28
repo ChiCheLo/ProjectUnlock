@@ -37,7 +37,7 @@
         :key="n.id"
         class="notif-item"
       >
-        <span class="notif-text"><span class="notif-name">{{ n.student_name }}</span> 建立了 {{ n.policy_title }}</span>
+        <span class="notif-text"><span class="notif-name">{{ n.student_name }}</span> {{ n.policy_title }}</span>
         <button class="notif-close" @click="dismissNotif(n.id)">✕</button>
       </div>
     </transition-group>

@@ -78,7 +78,7 @@ function switchMusic(routeName: string) {
 
   const audio = new Audio(config.src)
   audio.loop = true
-  audio.volume = isMuted.value ? 0 : 0.4
+  audio.volume = isMuted.value ? 0 : 0.3
   audio.play().catch(() => {
     // 瀏覽器自動播放政策：等待使用者互動後播放
     const resume = () => {
@@ -96,7 +96,7 @@ function switchMusic(routeName: string) {
 
 // 監聽靜音狀態 → 即時調整背景音樂音量
 watch(isMuted, (muted) => {
-  if (currentAudio) currentAudio.volume = muted ? 0 : 0.4
+  if (currentAudio) currentAudio.volume = muted ? 0 : 0.3
 })
 
 onMounted(() => {

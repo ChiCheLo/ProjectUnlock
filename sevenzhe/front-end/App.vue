@@ -7,6 +7,7 @@
 import { watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import ClueTrade from './src/components/ClueTrade.vue'
+import { isMuted } from './src/composables/useAudioStore'
 
 const route = useRoute()
 
@@ -44,7 +45,7 @@ const ENTER_TRANSITIONS = new Set([
 
 function playEnterSound() {
   const enter = new Audio('/audio/enter.mp3')
-  enter.volume = 0.7
+  enter.volume = isMuted.value ? 0 : 0.7
   enter.play().catch(() => {})
 }
 
@@ -77,7 +78,7 @@ function switchMusic(routeName: string) {
 
   const audio = new Audio(config.src)
   audio.loop = true
-  audio.volume = 0.4
+  audio.volume = isMuted.value ? 0 : 0.4
   audio.play().catch(() => {
     // 瀏覽器自動播放政策：等待使用者互動後播放
     const resume = () => {
@@ -92,6 +93,11 @@ function switchMusic(routeName: string) {
   currentAudio = audio
   currentGroup = config.group
 }
+
+// 監聽靜音狀態 → 即時調整背景音樂音量
+watch(isMuted, (muted) => {
+  if (currentAudio) currentAudio.volume = muted ? 0 : 0.4
+})
 
 onMounted(() => {
   if (route.name) switchMusic(route.name as string)

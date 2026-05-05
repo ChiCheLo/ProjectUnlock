@@ -303,6 +303,41 @@ function toggleNotification() {
   }
 }
 
+// ── 管理員：查詢組別線索 ─────────────────────────────────────────
+const clueQuerySessionId = ref('')
+const clueQueryGroupId = ref('')
+const clueQueryResults = ref<{ student_id: number; student_name: string; clue_id: number; clue_url: string }[]>([])
+const clueQueryLoading = ref(false)
+const clueQueryError = ref('')
+const clueQueryDone = ref(false)
+const cluePreviewUrl = ref<string | null>(null)
+
+async function queryGroupClues() {
+  if (!clueQuerySessionId.value || !clueQueryGroupId.value) {
+    clueQueryError.value = '請填入 Session ID 與 Group ID'
+    return
+  }
+  clueQueryLoading.value = true
+  clueQueryError.value = ''
+  clueQueryDone.value = false
+  clueQueryResults.value = []
+  try {
+    const res = await fetch(`/api/group-clues/?session_id=${clueQuerySessionId.value}&group_id=${clueQueryGroupId.value}`)
+    const data = await res.json()
+    if (data.ok) {
+      clueQueryResults.value = data.data
+      clueQueryDone.value = true
+    } else {
+      clueQueryError.value = data.error || '查詢失敗'
+    }
+  } catch (err) {
+    clueQueryError.value = '網路錯誤'
+  } finally {
+    clueQueryLoading.value = false
+  }
+}
+// ────────────────────────────────────────────────────────────────
+
 function closeNotification() {
   showNotification.value = false
 }
@@ -603,10 +638,191 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </main>
+
+    <!-- 管理員：查詢組別線索 panel -->
+    <div v-if="isAdmin" class="admin-clue-panel">
+      <div class="admin-clue-title">🔍 查詢組別線索</div>
+      <div class="admin-clue-inputs">
+        <input v-model="clueQuerySessionId" type="number" placeholder="Session ID" class="admin-clue-input" />
+        <input v-model="clueQueryGroupId" type="number" placeholder="Group ID" class="admin-clue-input" />
+        <button class="admin-clue-btn" :disabled="clueQueryLoading" @click="queryGroupClues">
+          {{ clueQueryLoading ? '查詢中…' : '查詢' }}
+        </button>
+      </div>
+      <div v-if="clueQueryError" class="admin-clue-error">{{ clueQueryError }}</div>
+      <div v-if="clueQueryDone && clueQueryResults.length === 0" class="admin-clue-empty">該組別尚無線索</div>
+      <div v-if="clueQueryResults.length > 0" class="admin-clue-results">
+        <div
+          v-for="item in clueQueryResults"
+          :key="item.clue_id"
+          class="admin-clue-item"
+          @click="cluePreviewUrl = item.clue_url"
+        >
+          <span class="admin-clue-badge">clue {{ item.clue_id }}</span>
+          <span class="admin-clue-student">{{ item.student_name }}（{{ item.student_id }}）</span>
+          <img v-if="item.clue_url" :src="item.clue_url" class="admin-clue-thumb" alt="線索縮圖" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 線索預覽 lightbox -->
+    <div v-if="cluePreviewUrl" class="admin-clue-lightbox" @click="cluePreviewUrl = null">
+      <img :src="cluePreviewUrl" class="admin-clue-lightbox-img" alt="線索大圖" @click.stop />
+      <button class="admin-clue-lightbox-close" @click="cluePreviewUrl = null">✕</button>
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* ── 管理員線索查詢 panel ─────────────────────────────────── */
+.admin-clue-panel {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 9999;
+  background: rgba(20, 20, 40, 0.93);
+  border: 1px solid rgba(100, 160, 255, 0.4);
+  border-radius: 16px;
+  padding: 16px 20px;
+  min-width: 260px;
+  max-width: 340px;
+  color: white;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+}
+
+.admin-clue-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(130, 190, 255, 0.9);
+  margin-bottom: 10px;
+  letter-spacing: 0.04em;
+}
+
+.admin-clue-inputs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-clue-input {
+  width: 80px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(100, 160, 255, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font-size: 13px;
+  outline: none;
+}
+
+.admin-clue-input::placeholder { color: rgba(255,255,255,0.35); }
+.admin-clue-input:focus { border-color: rgba(130, 190, 255, 0.8); }
+
+.admin-clue-btn {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+.admin-clue-btn:hover { filter: brightness(1.2); }
+.admin-clue-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.admin-clue-error { font-size: 12px; color: #ff8080; margin-bottom: 6px; }
+.admin-clue-empty { font-size: 12px; color: rgba(200,200,220,0.6); }
+
+.admin-clue-results {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.admin-clue-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.admin-clue-item:hover { background: rgba(255,255,255,0.14); }
+
+.admin-clue-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(100,160,255,0.25);
+  color: #a0cfff;
+  padding: 2px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.admin-clue-student {
+  font-size: 12px;
+  color: rgba(220,220,240,0.85);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-clue-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+/* lightbox */
+.admin-clue-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-clue-lightbox-img {
+  max-width: 90vw;
+  max-height: 85vh;
+  border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  object-fit: contain;
+}
+
+.admin-clue-lightbox-close {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: white;
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* ──────────────────────────────────────────────────────────── */
+
 .page-wrapper {
   min-height: 100vh;
   background: #FFF;

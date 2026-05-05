@@ -61,6 +61,7 @@ urlpatterns = [
     # 管理員用：取得 active sessions 與線索分配
     path('active-sessions/', views.get_active_sessions, name='get_active_sessions'),
     path('assign-clues/', views.assign_clues, name='assign_clues'),
+    path('group-clues/', views.get_group_clues, name='get_group_clues'),
 
     # 調試 API
     path('debug/clues-table/', views.debug_clues_table, name='debug_clues_table'),

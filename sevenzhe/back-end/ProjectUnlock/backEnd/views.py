@@ -2061,3 +2061,63 @@ def get_policy_notifications(request):
         return Response({'ok': True, 'data': result})
     except Exception as err:
         return Response({'ok': False, 'error': str(err)}, status=500)
+
+
+@api_view(['GET'])
+@csrf_exempt
+def get_group_clues(request):
+    """
+    管理員查詢：取得指定 session_id + group_id 的組別所擁有的所有線索
+    Query params:
+      - session_id: session ID
+      - group_id: 組別 ID
+    返回:
+      { ok: True, data: [{ student_id, student_name, clue_id, clue_url }, ...] }
+    """
+    try:
+        session_id = request.query_params.get('session_id')
+        group_id = request.query_params.get('group_id')
+        if not session_id or not group_id:
+            return Response({'ok': False, 'error': 'session_id 與 group_id 不能為空'}, status=400)
+
+        cursor = connection.cursor()
+
+        # 找出該 session + group 的所有學生
+        cursor.execute("""
+            SELECT student_id, student_name
+            FROM student_table
+            WHERE session_id = %s AND group_id = %s
+        """, [session_id, group_id])
+        students = cursor.fetchall()
+
+        if not students:
+            return Response({'ok': True, 'data': [], 'message': '該組別沒有學生'})
+
+        student_ids = [row[0] for row in students]
+        student_map = {row[0]: row[1] for row in students}
+
+        # 查詢這些學生擁有的線索
+        placeholders = ','.join(['%s'] * len(student_ids))
+        cursor.execute(f"""
+            SELECT sc.student_id, sc.clue_id, ct.clue
+            FROM studentClue_table sc
+            JOIN clue_table ct ON sc.clue_id = ct.clue_id
+            WHERE sc.student_id IN ({placeholders})
+            ORDER BY sc.clue_id
+        """, student_ids)
+        rows = cursor.fetchall()
+
+        data = []
+        for row in rows:
+            student_id_val, clue_id_val, clue_url = row
+            data.append({
+                'student_id': student_id_val,
+                'student_name': student_map.get(student_id_val, ''),
+                'clue_id': clue_id_val,
+                'clue_url': clue_url or '',
+            })
+
+        return Response({'ok': True, 'data': data})
+    except Exception as err:
+        import traceback
+        return Response({'ok': False, 'error': str(err) + '\n' + traceback.format_exc()}, status=500)

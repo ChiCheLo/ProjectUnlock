@@ -1006,27 +1006,29 @@ def quiz_answer_check(request):
         if not is_correct:
             return Response({'ok': True, 'correct': False})
 
-        # 答對：查詢對應的線索（clue_table.question_id = question_id）
+        # 答對：查詢對應的線索（clue_table.question_id = question_id，最多 2 筆）
         cursor.execute("""
-            SELECT clue_id, clue FROM clue_table WHERE question_id = %s LIMIT 1
+            SELECT clue_id, clue FROM clue_table WHERE question_id = %s LIMIT 2
         """, [question_id])
-        clue_row = cursor.fetchone()
+        clue_rows = cursor.fetchall()
 
-        if not clue_row:
+        if not clue_rows:
             # 沒有對應線索，仍回報答對
             return Response({'ok': True, 'correct': True, 'clue_id': None, 'clue_url': None})
 
-        clue_id, clue_path = clue_row[0], clue_row[1]
-
-        # 將線索加入 studentClue_table（若已存在則忽略）
+        # 將所有線索加入 studentClue_table（若已存在則忽略）
         try:
-            cursor.execute("""
-                INSERT IGNORE INTO studentClue_table (student_id, clue_id) VALUES (%s, %s)
-            """, [student_id, clue_id])
             from django.db import connection as conn
+            for clue_row in clue_rows:
+                cursor.execute("""
+                    INSERT IGNORE INTO studentClue_table (student_id, clue_id) VALUES (%s, %s)
+                """, [student_id, clue_row[0]])
             conn.connection.commit()
         except Exception as e:
             print(f"[WARN] 插入 studentClue_table 失敗: {e}")
+
+        # 回傳第一筆線索（前端 overlay 只顯示一張）
+        clue_id, clue_path = clue_rows[0][0], clue_rows[0][1]
 
         # 答對時：把該學生的 group 的 coin_amount +1（若 table/欄位存在）
         try:

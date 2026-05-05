@@ -159,7 +159,7 @@ const showCluesModal = ref(false)
 
 // 新的組別線索 modal（使用不同名稱，避開舊的失敗版本）
 const showGroupCluesModal = ref(false)
-const groupClues = ref<string[]>([])
+const groupClues = ref<{ clue_id?: number; clue_url: string }[]>([])
 const isLoadingGroupClues = ref(false)
 
 // 放大檢視狀態
@@ -224,15 +224,19 @@ const fetchGroupClues = async () => {
       return url
     }
 
+    const collected: { clue_id?: number; clue_url: string }[] = []
     results.forEach((res: any) => {
       if (res && res.ok && Array.isArray(res.data)) {
         res.data.forEach((c: any) => {
-          if (c.clue_url) set.add(normalize(c.clue_url))
+          const url = normalize(c.clue_url || '')
+          if (!url || set.has(url)) return
+          set.add(url)
+          collected.push({ clue_id: c.clue_id, clue_url: url })
         })
       }
     })
 
-    groupClues.value = Array.from(set)
+    groupClues.value = collected
     showGroupCluesModal.value = true
   } catch (err) {
     console.error('fetchGroupClues error', err)
@@ -600,10 +604,10 @@ function handleDecision(choice: '建立' | '不建立') {
         <div class="clues-modal">
           <div class="clues-modal-inner">
             <div v-if="isLoadingGroupClues" class="clues-loading">載入中...</div>
-              <div v-else-if="groupClues && groupClues.length > 0" class="clues-list image-clues">
-              <div v-for="(url, idx) in groupClues" :key="url" class="clue-item">
-                <div class="clue-image" @click="openZoom(url)">
-                  <img :src="url" :alt="`線索 ${idx + 1}`" />
+            <div v-else-if="groupClues && groupClues.length > 0" class="clues-list image-clues">
+              <div v-for="(c, idx) in groupClues" :key="c.clue_url" class="clue-item">
+                <div class="clue-image" @click="openZoom(c.clue_url)">
+                  <img :src="c.clue_url" :alt="`線索 ${idx + 1}`" />
                 </div>
               </div>
             </div>
@@ -1323,7 +1327,7 @@ function handleDecision(choice: '建立' | '不建立') {
 .clues-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 250;
+  z-index: 1700;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1341,33 +1345,53 @@ function handleDecision(choice: '建立' | '不建立') {
   overflow: hidden;
 }
 
-.clues-modal-close {
-  position: absolute;
-  top: -18px;
-  right: -18px;
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-  border: none;
-  background: #fff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.clues-modal-close-icon {
-  width: 30px;
-  height: 30px;
-}
-
 .clues-modal-inner {
   max-height: calc(85vh - 60px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.clues-loading { color: #ccc; }
+.no-clues { color: #666; text-align: center; padding: 28px 0; }
+
+/* modal 的圖片格子 */
+.image-clues {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  max-height: none;
+  overflow-y: visible;
+  padding-right: 0;
+  flex-direction: unset;
+}
+
+.image-clues .clue-item {
+  aspect-ratio: 4 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff4d8;
+  border: 2px solid #fead00;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clue-image {
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clue-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 /* 動畫 */
@@ -1670,7 +1694,7 @@ function handleDecision(choice: '建立' | '不建立') {
   position: fixed;
   right: 28px;
   bottom: 28px;
-  z-index: 260;
+  z-index: 1600;
   background: #fead00;
   color: #333;
   border: none;
@@ -1684,36 +1708,6 @@ function handleDecision(choice: '建立' | '不建立') {
 .group-clues-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-/* modal 的圖片格子 */
-.image-clues {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-}
-
-.image-clues .clue-item {
-  aspect-ratio: 4 / 3;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #fff4d8;
-  border: 2px solid #fead00;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.clue-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.no-clues {
-  color: #666;
-  text-align: center;
-  padding: 20px;
 }
 
 /* Zoom overlay */

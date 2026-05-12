@@ -288,8 +288,8 @@ def openai_chat(request):
             # 即使 LLM 設定 reveal_truth=true，仍需通過下列硬性條件才允許揭曉湯底。
             if result.get('reveal_truth'):
                 msg_text = message.strip()
-                # 1) 字數門檻：少於 25 個字幾乎不可能是完整推論
-                min_chars = 25
+                # 1) 字數門檻：少於 20 個字幾乎不可能是完整推論
+                min_chars = 20
                 # 2) 必須包含明確的推論宣告語（避免「是不是因為 X」這種是非題被誤判）
                 reveal_triggers = (
                     '我認為', '我猜', '我覺得', '我推理', '我推測', '我想答案',
